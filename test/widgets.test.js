@@ -1,77 +1,185 @@
+// -----------------------------------------------------------------------------
+// The `player` widget: content within the core's vocabulary and budget, bound
+// to features that exist, and its actions.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { validateWidgetContent } from '@gladysassistant/integration-sdk';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { buildDiscoveredDevices } from '../src/devices/index.js';
-import { simulateLanSession } from '../src/devices/plug.js';
-import { DEMO_STATUS_WIDGET, WIDGETS, refreshWidgets } from '../src/widgets.js';
-import { normalizeConfig } from '../src/config.js';
+import { createAll, createWorld, deviceId, settle } from './helpers/world.js';
+import { setNowPlaying } from './helpers/fakeSpeaker.js';
 
-const gladys = createFakeGladys();
-const config = normalizeConfig();
-const demoStatus = WIDGETS[DEMO_STATUS_WIDGET];
+const fixture = (name) =>
+  readFileSync(new URL(`./fixtures/soundtouch/${name}`, import.meta.url), 'utf8');
 
-// What the SDK passes to onWidgetGet, plus the config index.js adds.
-const getContent = (cfg = config) =>
-  demoStatus.get(gladys, { settings: {}, language: 'en', units: 'metric', config: cfg });
+async function content(world, speaker, language = 'fr') {
+  const ack = await world.gladys.fake.widgetGet('player', {
+    settings: { device: deviceId(world.gladys, speaker) },
+    language,
+    units: 'metric',
+  });
+  assert.equal(ack.success, true, ack.error);
+  return ack.data.content;
+}
 
-test('the demo_status content is rendered exactly as sent', async () => {
-  // [] = nothing the core would drop, truncate or trim to the content budget.
-  assert.deepEqual(validateWidgetContent(await getContent()), []);
-});
+const featureIdsOf = (world) =>
+  new Set(world.gladys.fake.discoveredDevices.flatMap((d) => d.features.map((f) => f.external_id)));
 
-test('the degraded plug connection content is valid too', async () => {
-  simulateLanSession(false);
+test('the content fits the core rules, in every language and state', async () => {
+  const world = await createWorld();
   try {
-    const content = await getContent();
-    assert.deepEqual(validateWidgetContent(content), []);
-    const status = content.components.find((component) => component.type === 'status');
-    assert.ok(
-      status.items.some((item) => item.color === 'warning'),
-      'degraded shows a warning',
-    );
+    await createAll(world);
+    const known = featureIdsOf(world);
+    for (const speaker of world.network.speakers) {
+      for (const language of ['en', 'fr', 'de', 'es']) {
+        const widget = await content(world, speaker, language);
+        assert.deepEqual(validateWidgetContent(widget), [], `${speaker.id} ${language}`);
+        // validateWidgetContent does not check the bound features exist.
+        for (const component of widget.components) {
+          if (component.device_feature) {
+            assert.ok(known.has(component.device_feature), component.device_feature);
+          }
+        }
+        const buttons = widget.components.filter((component) => component.type === 'button');
+        const keys = buttons.filter((b) => b.action).map((b) => b.action.key);
+        assert.equal(new Set(keys).size, keys.length, 'action keys are unique');
+      }
+    }
   } finally {
-    simulateLanSession(true);
+    await world.app.stop();
   }
 });
 
-test('the live tiles reference features the integration publishes', async () => {
-  const featureIds = new Set(
-    buildDiscoveredDevices(gladys, config).flatMap((device) =>
-      device.features.map((feature) => feature.external_id),
-    ),
-  );
-  const liveTiles = (await getContent()).components.filter((c) => c.device_feature);
-  assert.ok(liveTiles.length > 0, 'the template demonstrates a device-bound tile');
-  for (const tile of liveTiles) {
-    assert.ok(featureIds.has(tile.device_feature), `unknown feature ${tile.device_feature}`);
+test('what the widget shows for a playing speaker', async () => {
+  const world = await createWorld();
+  try {
+    await createAll(world);
+    const [kitchen] = world.network.speakers;
+    const widget = await content(world, kitchen, 'fr');
+    const [heading, caption, tile, status] = widget.components;
+    assert.equal(heading.text, 'MockTrack');
+    assert.equal(caption.text, 'MockArtist · Présélection 2 · MockStation');
+    assert.equal(tile.device_feature, `${deviceId(world.gladys, kitchen)}:volume`);
+    assert.deepEqual(
+      status.items.map((item) => `${item.label}: ${item.value}`),
+      [
+        'État: Lecture',
+        'Source: Présélection 2 · MockStation',
+        'Groupe: Pilote My SoundTouch 2, 020000000003',
+      ],
+    );
+    const buttons = widget.components.filter((component) => component.type === 'button');
+    assert.deepEqual(
+      buttons.map((button) => button.icon),
+      ['skip-back', 'pause', 'skip-forward', 'radio'],
+    );
+    // The current state is told by icons, never by the `primary` style.
+    assert.ok(buttons.every((button) => button.style !== 'primary'));
+    const presetField = buttons[3].action.fields[0];
+    assert.deepEqual(
+      presetField.options.map((option) => option.value),
+      ['1', '2'],
+    );
+    assert.equal(presetField.default, '2');
+  } finally {
+    await world.app.stop();
   }
 });
 
-test('every button action of the content is handled and answers a short toast', async () => {
-  const buttons = (await getContent()).components.filter((c) => c.type === 'button' && c.action);
-  assert.ok(buttons.length > 0, 'the template demonstrates a widget action');
-  for (const { action } of buttons) {
-    const message = await demoStatus.action(gladys, {
-      actionKey: action.key,
-      params: action.params ?? {},
-      settings: {},
-      config,
+test('a speaker in standby offers to turn it on', async () => {
+  const world = await createWorld();
+  try {
+    await createAll(world);
+    const bedroom = world.network.speakers[1];
+    const widget = await content(world, bedroom, 'en');
+    assert.equal(widget.components[0].text, 'My SoundTouch 2');
+    const power = widget.components.find((c) => c.type === 'button' && c.action?.key === 'power');
+    assert.ok(power);
+    const ack = await world.gladys.fake.widgetAction(
+      'player',
+      'power',
+      {},
+      {
+        settings: { device: deviceId(world.gladys, bedroom) },
+      },
+    );
+    assert.equal(ack.success, true, ack.error);
+    await settle(world.hub);
+    assert.deepEqual(bedroom.keys, ['POWER']);
+  } finally {
+    await world.app.stop();
+  }
+});
+
+test('the widget actions: play/pause, preset from the form', async () => {
+  const world = await createWorld();
+  try {
+    await createAll(world);
+    const [kitchen] = world.network.speakers;
+    const settings = { device: deviceId(world.gladys, kitchen) };
+
+    let ack = await world.gladys.fake.widgetAction('player', 'play_pause', {}, { settings });
+    assert.equal(ack.success, true, ack.error);
+    assert.deepEqual(kitchen.keys, ['PLAY_PAUSE']);
+
+    setNowPlaying(kitchen, fixture('ha_device1_now_playing_aux.xml'));
+    await settle(world.hub);
+    ack = await world.gladys.fake.widgetAction(
+      'player',
+      'preset',
+      {},
+      {
+        settings,
+        values: { preset: '2' },
+      },
+    );
+    assert.equal(ack.success, true, ack.error);
+    assert.equal(ack.data.message.fr, 'Présélection 2 · MockStation');
+    assert.match(kitchen.selected.at(-1), /sXXXXX/);
+    await settle(world.hub);
+    // Started from Gladys: no scene event.
+    assert.deepEqual(world.gladys.fake.sceneEvents, []);
+
+    // An older core relays the tap without the form.
+    ack = await world.gladys.fake.widgetAction('player', 'preset', {}, { settings });
+    assert.equal(ack.success, false);
+    assert.match(ack.error, /Update Gladys/);
+  } finally {
+    await world.app.stop();
+  }
+});
+
+test('the widget is nudged when what it shows changes, not for the volume', async () => {
+  const world = await createWorld();
+  try {
+    await createAll(world);
+    const [kitchen] = world.network.speakers;
+    const before = world.gladys.fake.widgetRefreshes.length;
+    world.network.speakers[0].volume.level = 50;
+    const record = world.hub.speakers.get('020000000001');
+    await world.hub.refresh(record);
+    await settle(world.hub);
+    assert.equal(world.gladys.fake.widgetRefreshes.length, before);
+    setNowPlaying(kitchen, fixture('ha_device1_now_playing_bluetooth.xml'));
+    await settle(world.hub);
+    assert.equal(world.gladys.fake.widgetRefreshes.length, before + 1);
+  } finally {
+    await world.app.stop();
+  }
+});
+
+test('no device chosen, or an unknown one: a hint, in the user language', async () => {
+  const world = await createWorld();
+  try {
+    let ack = await world.gladys.fake.widgetGet('player', { settings: {}, language: 'de' });
+    assert.match(ack.data.content.components[0].text, /Wähle in den Einstellungen/);
+    ack = await world.gladys.fake.widgetGet('player', {
+      settings: { device: 'ext:test-integration:speaker:ffffffffffff' },
+      language: 'es',
     });
-    assert.ok(message.en, 'the toast carries at least the mandatory `en` text');
-    assert.ok(message.en.length <= 200, 'toasts are capped at 200 characters');
+    assert.match(ack.data.content.components[0].text, /aún no es conocido/);
+  } finally {
+    await world.app.stop();
   }
-});
-
-test('an unknown widget action fails, so the user sees the error', async () => {
-  await assert.rejects(
-    demoStatus.action(gladys, { actionKey: 'unknown', params: {}, settings: {}, config }),
-    /Unknown widget action/,
-  );
-});
-
-test('refreshWidgets nudges every widget', () => {
-  const fresh = createFakeGladys();
-  refreshWidgets(fresh);
-  assert.deepEqual(fresh.fake.widgetRefreshes, Object.keys(WIDGETS));
 });

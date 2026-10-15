@@ -1,61 +1,175 @@
-# Demo Devices Template
+# Bose SoundTouch
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Control your Bose SoundTouch speakers (SoundTouch 10, 20, 30, 300, Wave,
+Lifestyle and the other SoundTouch systems) from Gladys, over the local network:
+power, volume, mute, play and pause, previous and next track, source, the six
+presets, what is playing and the multi-room group.
 
-## What you get
+> **Developed without the hardware: feedback welcome.** This integration was
+> written from the Bose SoundTouch Web API documentation and from the
+> recorded answers of other open-source projects, without a speaker at hand.
+> Tell us on the Gladys forum what works and what does not.
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+This integration is not affiliated with Bose. Bose and SoundTouch are trademarks
+of Bose Corporation.
+
+## Overview
+
+Each speaker becomes one Gladys device, a music player: the Gladys **Music**
+dashboard box drives it (play, pause, previous, next, volume slider), and the
+device box shows the rest. Changes made from the speaker, its remote or the
+SoundTouch app reach Gladys within a second, through the speaker's own
+notifications.
+
+Everything stays on your network: the integration talks to the speakers
+directly, with no account and no cloud. Bose has announced the end of the
+SoundTouch cloud service; the local API this integration uses keeps working
+without it.
+
+## Requirements
+
+- Gladys 5.2.0 or later.
+- SoundTouch speakers on the same network as Gladys, already set up with the
+  SoundTouch app (they must be on your Wi-Fi or Ethernet network).
+- Gladys must reach the speakers on TCP ports 8090 (API), 8080 (notifications)
+  and, for the "Play an audio address" action, 8091 (UPnP).
 
 ## Configuration
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+1. Install the integration (**Integrations → Install from GitHub** while it is
+   not in the store), then open its **Configuration** tab.
+2. Speakers on the same network are found automatically (mDNS, relayed by
+   Gladys). If one is missing, type its IP address in **Speaker IP
+   addresses** (several addresses: separate them with commas). The SoundTouch
+   app shows it under Settings, Speaker Settings, Speaker Info. Give your
+   speakers a fixed address in your router if you can.
+3. Choose the **Language of the texts**: the feature names (set when you add a
+   speaker) and the texts the integration writes (source, group, standby).
+   French by default.
+4. Save, then open the **Discovery** tab and add your speakers.
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+The **Search for speakers** button looks for the speakers again and lists the
+ones found, with their model, their address and whether their notifications
+are live.
 
-## Actions
+## The speaker device
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+| Feature          | What it does                                                                 |
+| ---------------- | ---------------------------------------------------------------------------- |
+| Power            | Turns the speaker on (it resumes what it last played) or puts it in standby  |
+| Volume           | 0 to 100, follows the volume knob and the remote                             |
+| Mute             | Mutes or unmutes                                                             |
+| Play, Pause      | Buttons of the Music box                                                     |
+| Previous, Next   | Previous or next track (on the sources that allow it)                        |
+| Playback state   | Playing or paused, read only (standby counts as paused)                      |
+| Source           | AUX, Bluetooth or one of the stored presets; "Other" for any other source    |
+| Now playing      | The track, else the station, else the source; "Standby" when off             |
+| Artist           | The artist, or the station of a radio playing a song; "—" when there is none |
+| Multi-room group | "Not grouped", "Leads Kitchen, Bedroom" or "Follows Living room", read only  |
+
+The **Source** list shows the presets stored on the speaker with their names
+("Preset 2 · FIP"); it follows the presets you store or change in the
+SoundTouch app. Picking "Other" does nothing: it only means the speaker plays a
+source Gladys cannot choose itself (Spotify, a radio outside the presets,
+standby). AUX is only offered on the speakers that have an AUX input.
+
+Multi-room groups are shown, not created: create them in the SoundTouch app.
+
+## Dashboard widget
+
+The **SoundTouch player** widget shows one speaker (chosen in its settings):
+
+- the title and the artist, with the source or the preset;
+- the volume, live;
+- the state (playing, paused, standby, unreachable), the source and the
+  multi-room group;
+- four buttons: previous, play/pause (turn on when the speaker is in standby),
+  next, and **Presets**, which opens the list of the six presets to start one.
+
+The Gladys **Music** box works too: choose the speaker in it.
 
 ## Scenes
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+### Trigger: SoundTouch preset started
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+**SoundTouch preset started** fires when one of the six presets starts outside
+Gladys: from the buttons of the speaker, its remote or the SoundTouch app. It
+also fires when the speaker wakes up on a preset. It does not fire when Gladys
+starts the preset itself (a scene, the widget, the Source list), so a scene
+cannot loop on it.
 
-## Dashboard
+Filters: the speaker, and the presets (leave empty for any). Variables: the
+preset number and the preset name.
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+### Action: Play a SoundTouch preset
+
+**Play a SoundTouch preset** starts preset 1 to 6 of a speaker, turning it on
+if needed. Its output is the name of the preset, for the next actions of the
+scene. An empty preset fails the action (the rest of the scene goes on).
+
+### Action: Play an audio address
+
+**Play an audio address** sends an `http://` address (a radio stream, a sound
+file served on your network) to the speaker's UPnP renderer, at an optional
+volume. The speakers do not play `https://` addresses. Not every model has the
+UPnP renderer: on those, the action fails.
+
+Power, volume and source need no dedicated action: use the core's "Control a
+device" action on the speaker's features.
+
+## Scene examples
+
+- **Wake up with the radio**: at 7:00 on weekdays, "Play a SoundTouch preset"
+  (preset 1, your morning radio) in the bedroom, then set its volume to 15.
+- **A preset button as a switch**: when "SoundTouch preset started" fires for
+  preset 6 on the living room speaker, turn on the living room lamps and close
+  the shutters: the speaker's button becomes a "movie night" button.
+- **Quiet when leaving**: when the last person leaves home, set the power of
+  every speaker to off.
+
+## Refresh and network
+
+- The speakers push every change (volume, track, source, presets, group) over
+  their notification WebSocket: Gladys follows them in real time.
+- The integration also reads each speaker over HTTP every 2 minutes (every 30
+  seconds while its notifications are down), to catch a lost notification and
+  notice a speaker that was unplugged. That is six small requests per speaker,
+  on your local network only.
+- Unchanged values are sent to Gladys again every 6 hours, so the device never
+  shows "no recent value".
+- A new search runs every 15 minutes, to follow a speaker whose address
+  changed (DHCP).
+- The SoundTouch web API has no account, no quota and no key. It is open to
+  any device of your network: that is how the speakers are built.
 
 ## Troubleshooting
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- **No speaker found**: check that the speaker plays from the SoundTouch app,
+  then type its IP address in the configuration. Automatic discovery needs a
+  Gladys that relays mDNS (5.2.0 or later) and a network that lets mDNS
+  through (some mesh Wi-Fi and guest networks do not).
+- **The speaker shows as unreachable**: it may be unplugged or in a deep sleep
+  (some models leave the network after a long standby). Press a button on the
+  speaker, then **Search for speakers**.
+- **States arrive late**: the notifications may be blocked between Gladys and
+  the speaker (port 8080); the integration then reads the speaker every 30
+  seconds. **Search for speakers** shows "polled" instead of "live".
+- **A preset is not in the Source list**: store it on the speaker first
+  (SoundTouch app or a long press on the preset button).
+- Set `LOG_LEVEL=debug` on the integration to see every notification and
+  refresh in its logs.
+
+## Limitations
+
+- Developed without the hardware: the behaviour on a real speaker is not
+  verified yet.
+- Gladys announcements (the "Broadcast a notification" scene action) are not
+  offered: Gladys Plus serves them from an `https://` address, and the
+  speakers only play `http://` ones.
+- Multi-room groups are read, not created or changed.
+- Only AUX and Bluetooth can be selected as inputs: the HDMI and TV inputs of
+  the Lifestyle and SoundTouch 300 systems, and the streaming services, are
+  shown as "Other".
+- Previous and next only work on the sources that allow skipping (not on a
+  radio).
+- Bass, tone and the alarms of some models are not supported.

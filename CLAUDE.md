@@ -11,13 +11,17 @@ Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
 its only runtime dependency. It started from the official JavaScript template.
 
+It drives **Bose SoundTouch** speakers over their local web API (HTTP 8090,
+notification WebSocket 8080, UPnP renderer 8091). See "Bose SoundTouch" below.
+
 ## Commands
 
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
 node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test --test-name-pattern "preset"  # tests whose name matches
+node scripts/probe.mjs <ip>               # read-only check of a real speaker (needs the LAN)
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
@@ -31,16 +35,25 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+index.js                          SDK wiring only (src/app.js registers the handlers)
+src/app.js                        every SDK handler, the "search" action report
+src/hub.js                        discovery, WebSocket links, own refresh timer, states, commands, trigger
+src/devices.js                    speaker -> Gladys device: features, names (4 languages), values, commands
+src/discovery.js                  mDNS results relayed by the core, address probing
+src/soundtouch/client.js          HTTP client of the web API (8090) and UPnP renderer (8091)
+src/soundtouch/socket.js          notification WebSocket (8080, sub-protocol "gabbo")
+src/soundtouch/model.js           the XML documents of the API, read into objects
+src/soundtouch/xml.js             small XML reader (no dependency)
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+src/widgets.js                    dashboard widget `player` (manifest `widgets`)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
+src/store.js, src/issues.js       /data persistence, deduplicated problem logs
+scripts/probe.mjs                 read-only check of a real speaker
 gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (en and fr mandatory)
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+test/helpers/fakeSpeaker.js       simulated speakers: HTTP, WebSocket, UPnP, in memory
+test/fixtures/soundtouch/         recorded answers (Home Assistant, libsoundtouch), anonymized
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +83,10 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in four languages (English, French, German with
+  "du", Spanish with "usted"): action messages, widget texts, feature names,
+  manifest texts, and `docs/en.md`, `fr.md`, `de.md`, `es.md` with the same
+  sections. `test/i18n.test.js` enforces it.
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +248,40 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Bose SoundTouch (propre à cette intégration)
+
+Développée **sans le matériel** : tout vient de la doc « Bose SoundTouch Web API », de
+libsoundtouch (Apache-2.0) et des fixtures de l'intégration Home Assistant (Apache-2.0). Les
+vérifications sur une vraie enceinte passent par `node scripts/probe.mjs <ip>` (lecture seule).
+
+**API**
+
+- HTTP 8090, XML, sans authentification : `GET /info`, `/now_playing`, `/volume`, `/presets`,
+  `/sources`, `/getZone` ; `POST /key`, `/volume`, `/select`. Une commande refusée répond **200**
+  avec un document `<errors>` : le client le transforme en erreur.
+- WebSocket 8080, sous-protocole **`gabbo`** obligatoire. Messages `<updates deviceID>` :
+  `volumeUpdated`, `nowPlayingUpdated` (une mise en mémoire tampon arrive **sans ContentItem** :
+  fusionner avec l'état connu), `presetsUpdated` (avec les présélections), `zoneUpdated` et
+  `infoUpdated` (vides : relire en HTTP). À la connexion, un `<SoundTouchSdkInfo/>` à ignorer.
+- Le client WebSocket standard de Node n'envoie pas de ping : un lien mort sans fermeture est
+  détecté par le contrôle HTTP périodique (2 min), qui relance le WebSocket.
+- Lecture d'une adresse : UPnP `SetAVTransportURI` sur le port **8091**, `http://` seulement
+  (pas de https), pas sur tous les modèles.
+- `deviceID` = adresse MAC du module principal (12 hex) : c'est l'identifiant de plateforme.
+
+**Pièges**
+
+- `POWER` et `MUTE` sont des **bascules** : n'envoyer la touche que si l'état diffère de celui
+  demandé, sinon Gladys éteint une enceinte qu'on voulait allumer.
+- Une touche est **press puis release**. Ne jamais envoyer `PRESET_n` : un appui long
+  **enregistre** la présélection en cours à la place. Jouer une présélection = renvoyer son
+  `ContentItem` à `/select`.
+- Le `sourceAccount` d'un service de streaming est un **nom d'utilisateur** : jamais dans les
+  journaux, ni dans `/sources` gardé (seul celui d'AUX, `AUX`/`AUX3`, sert).
+- Un membre de groupe ne liste que lui-même dans `/getZone` : seul le pilote liste le groupe.
+  Les noms des autres enceintes viennent des enceintes connues.
+- Les annonces TTS de Gladys (`music/play_notification`) arrivent en **https** (Gladys Plus) :
+  non exposées, le lecteur UPnP ne joue que du http.
+- Le déclencheur `preset_selected` ignore les présélections lancées par Gladys dans les 5 s
+  (pas de boucle de scène) ; il part aussi au réveil de l'enceinte sur une présélection.

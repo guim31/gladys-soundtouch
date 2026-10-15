@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<sources deviceID="020000000001">
+    <sourceItem source="AUX" sourceAccount="AUX" status="READY" isLocal="true" multiroomallowed="true">AUX IN</sourceItem>
+    <sourceItem source="BLUETOOTH" status="UNAVAILABLE" isLocal="true" multiroomallowed="true" />
+    <sourceItem source="INTERNET_RADIO" status="READY" isLocal="false" multiroomallowed="true" />
+    <sourceItem source="NOTIFICATION" status="UNAVAILABLE" isLocal="false" multiroomallowed="true" />
+    <sourceItem source="QPLAY" sourceAccount="QPlay1UserName" status="UNAVAILABLE" isLocal="true" multiroomallowed="true">QPlay1UserName</sourceItem>
+    <sourceItem source="STORED_MUSIC_MEDIA_RENDERER" sourceAccount="StoredMusicUserName" status="UNAVAILABLE" isLocal="false" multiroomallowed="true">StoredMusicUserName</sourceItem>
+    <sourceItem source="UPNP" sourceAccount="UPnPUserName" status="READY" isLocal="false" multiroomallowed="true">UPnPUserName</sourceItem>
+    <sourceItem source="TUNEIN" status="READY" isLocal="false" multiroomallowed="true" />
+</sources>

@@ -1,147 +1,290 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Bose SoundTouch",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Bose SoundTouch speakers on the local network: power, volume, sources, presets, now playing.",
+    "fr": "Enceintes Bose SoundTouch en local : marche, volume, sources, présélections, lecture en cours.",
+    "de": "Bose-SoundTouch-Lautsprecher im lokalen Netz: Betrieb, Lautstärke, Quellen, Voreinstellungen, Titel.",
+    "es": "Altavoces Bose SoundTouch en red local: encendido, volumen, fuentes, presintonías, reproducción."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
-  "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "docker_image": "ghcr.io/guim31/gladys-soundtouch:1.0.0",
+  "gladys_version": ">=5.2.0",
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-soundtouch/main/cover.png",
+  "categories": ["multimedia"],
+  "transports": ["local"],
+  "network_discovery": [
+    {
+      "type": "mdns",
+      "service": "_soundtouch._tcp"
+    }
+  ],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Finding your speakers",
+        "fr": "Trouver vos enceintes",
+        "de": "Deine Lautsprecher finden",
+        "es": "Encontrar sus altavoces"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "SoundTouch speakers on the same network as Gladys are found automatically (mDNS): open the Discovery tab. If one is missing, enter its IP address below (shown in the SoundTouch app, under Settings, Speaker Settings, Speaker Info). Not affiliated with Bose.",
+        "fr": "Les enceintes SoundTouch du même réseau que Gladys sont trouvées automatiquement (mDNS) : ouvrez l'onglet Découverte. S'il en manque une, saisissez son adresse IP ci-dessous (affichée dans l'application SoundTouch, Paramètres, Paramètres de l'enceinte, Informations). Sans lien avec Bose.",
+        "de": "SoundTouch-Lautsprecher im selben Netzwerk wie Gladys werden automatisch gefunden (mDNS): Öffne den Tab „Entdecken“. Fehlt einer, gib unten seine IP-Adresse ein (in der SoundTouch-App unter Einstellungen, Lautsprechereinstellungen, Lautsprecher-Info). Nicht mit Bose verbunden.",
+        "es": "Los altavoces SoundTouch de la misma red que Gladys se encuentran automáticamente (mDNS): abra la pestaña Descubrir. Si falta alguno, introduzca su dirección IP a continuación (se muestra en la aplicación SoundTouch, en Ajustes, Ajustes del altavoz, Información). Sin relación con Bose."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/guim31/gladys-soundtouch/blob/main/docs/en.md",
+          "label": {
+            "en": "Setup guide",
+            "fr": "Guide d'installation",
+            "de": "Installationsanleitung",
+            "es": "Guía de instalación"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "hosts",
+      "type": "string",
+      "label": {
+        "en": "Speaker IP addresses",
+        "fr": "Adresses IP des enceintes",
+        "de": "IP-Adressen der Lautsprecher",
+        "es": "Direcciones IP de los altavoces"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "Optional, separated by commas. Only needed for the speakers automatic discovery does not find.",
+        "fr": "Facultatif, séparées par des virgules. Seulement pour les enceintes que la découverte automatique ne trouve pas.",
+        "de": "Optional, durch Kommas getrennt. Nur für Lautsprecher nötig, die die automatische Erkennung nicht findet.",
+        "es": "Opcional, separadas por comas. Solo para los altavoces que el descubrimiento automático no encuentra."
+      },
+      "placeholder": {
+        "en": "e.g. 192.168.1.50, 192.168.1.51",
+        "fr": "ex. 192.168.1.50, 192.168.1.51",
+        "de": "z. B. 192.168.1.50, 192.168.1.51",
+        "es": "p. ej. 192.168.1.50, 192.168.1.51"
+      },
+      "required": false,
+      "default": ""
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
+      "key": "language",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "label": {
+        "en": "Language of the texts",
+        "fr": "Langue des textes",
+        "de": "Sprache der Texte",
+        "es": "Idioma de los textos"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Language of the feature names (set when a speaker is added) and of the texts the integration writes: source, group, standby.",
+        "fr": "Langue des noms des fonctionnalités (fixés à l'ajout d'une enceinte) et des textes écrits par l'intégration : source, groupe, veille.",
+        "de": "Sprache der Funktionsnamen (beim Hinzufügen eines Lautsprechers festgelegt) und der Texte der Integration: Quelle, Gruppe, Standby.",
+        "es": "Idioma de los nombres de las funciones (fijados al añadir un altavoz) y de los textos de la integración: fuente, grupo, en espera."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "search",
+      "label": {
+        "en": "Search for speakers",
+        "fr": "Rechercher les enceintes",
+        "de": "Lautsprecher suchen",
+        "es": "Buscar altavoces"
+      },
+      "description": {
+        "en": "Looks for SoundTouch speakers again and reports the ones found.",
+        "fr": "Recherche à nouveau les enceintes SoundTouch et liste celles trouvées.",
+        "de": "Sucht erneut nach SoundTouch-Lautsprechern und listet die gefundenen auf.",
+        "es": "Busca de nuevo los altavoces SoundTouch e indica los encontrados."
+      },
       "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "preset_selected",
+      "label": {
+        "en": "SoundTouch preset started",
+        "fr": "Présélection SoundTouch lancée",
+        "de": "SoundTouch-Voreinstellung gestartet",
+        "es": "Presintonía SoundTouch iniciada"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "One of the six presets started outside Gladys: from the speaker's buttons, its remote or the SoundTouch app.",
+        "fr": "Une des six présélections a été lancée hors de Gladys : depuis les boutons de l'enceinte, sa télécommande ou l'application SoundTouch.",
+        "de": "Eine der sechs Voreinstellungen wurde außerhalb von Gladys gestartet: über die Tasten des Lautsprechers, seine Fernbedienung oder die SoundTouch-App.",
+        "es": "Una de las seis presintonías se ha iniciado fuera de Gladys: desde los botones del altavoz, su mando a distancia o la aplicación SoundTouch."
       },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
+          "label": {
+            "en": "Speaker",
+            "fr": "Enceinte",
+            "de": "Lautsprecher",
+            "es": "Altavoz"
+          }
         },
         {
-          "key": "target",
+          "key": "preset",
           "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
+          "label": {
+            "en": "Presets",
+            "fr": "Présélections",
+            "de": "Voreinstellungen",
+            "es": "Presintonías"
+          },
+          "description": {
+            "en": "Leave empty for any preset.",
+            "fr": "Laisser vide pour n'importe quelle présélection.",
+            "de": "Leer lassen für eine beliebige Voreinstellung.",
+            "es": "Déjelo vacío para cualquier presintonía."
+          },
           "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
+            {
+              "value": "1",
+              "label": {
+                "en": "Preset 1",
+                "fr": "Présélection 1",
+                "de": "Voreinstellung 1",
+                "es": "Presintonía 1"
+              }
+            },
+            {
+              "value": "2",
+              "label": {
+                "en": "Preset 2",
+                "fr": "Présélection 2",
+                "de": "Voreinstellung 2",
+                "es": "Presintonía 2"
+              }
+            },
+            {
+              "value": "3",
+              "label": {
+                "en": "Preset 3",
+                "fr": "Présélection 3",
+                "de": "Voreinstellung 3",
+                "es": "Presintonía 3"
+              }
+            },
+            {
+              "value": "4",
+              "label": {
+                "en": "Preset 4",
+                "fr": "Présélection 4",
+                "de": "Voreinstellung 4",
+                "es": "Presintonía 4"
+              }
+            },
+            {
+              "value": "5",
+              "label": {
+                "en": "Preset 5",
+                "fr": "Présélection 5",
+                "de": "Voreinstellung 5",
+                "es": "Presintonía 5"
+              }
+            },
+            {
+              "value": "6",
+              "label": {
+                "en": "Preset 6",
+                "fr": "Présélection 6",
+                "de": "Voreinstellung 6",
+                "es": "Presintonía 6"
+              }
+            }
           ]
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "preset",
+          "type": "number",
+          "label": {
+            "en": "Preset number",
+            "fr": "Numéro de la présélection",
+            "de": "Nummer der Voreinstellung",
+            "es": "Número de la presintonía"
+          }
+        },
+        {
+          "key": "preset_name",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Preset name",
+            "fr": "Nom de la présélection",
+            "de": "Name der Voreinstellung",
+            "es": "Nombre de la presintonía"
+          }
         }
       ]
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
+      "key": "play_preset",
+      "label": {
+        "en": "Play a SoundTouch preset",
+        "fr": "Jouer une présélection SoundTouch",
+        "de": "SoundTouch-Voreinstellung abspielen",
+        "es": "Reproducir una presintonía SoundTouch"
+      },
       "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+        "en": "Starts one of the six presets stored on the speaker, and turns it on if needed.",
+        "fr": "Lance une des six présélections enregistrées sur l'enceinte, et l'allume si besoin.",
+        "de": "Startet eine der sechs auf dem Lautsprecher gespeicherten Voreinstellungen und schaltet ihn bei Bedarf ein.",
+        "es": "Inicia una de las seis presintonías guardadas en el altavoz y lo enciende si es necesario."
       },
       "timeout_seconds": 15,
       "fields": [
@@ -149,29 +292,187 @@
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
+          "label": {
+            "en": "Speaker",
+            "fr": "Enceinte",
+            "de": "Lautsprecher",
+            "es": "Altavoz"
+          },
           "required": true
+        },
+        {
+          "key": "preset",
+          "type": "select",
+          "label": {
+            "en": "Preset",
+            "fr": "Présélection",
+            "de": "Voreinstellung",
+            "es": "Presintonía"
+          },
+          "required": true,
+          "options": [
+            {
+              "value": "1",
+              "label": {
+                "en": "Preset 1",
+                "fr": "Présélection 1",
+                "de": "Voreinstellung 1",
+                "es": "Presintonía 1"
+              }
+            },
+            {
+              "value": "2",
+              "label": {
+                "en": "Preset 2",
+                "fr": "Présélection 2",
+                "de": "Voreinstellung 2",
+                "es": "Presintonía 2"
+              }
+            },
+            {
+              "value": "3",
+              "label": {
+                "en": "Preset 3",
+                "fr": "Présélection 3",
+                "de": "Voreinstellung 3",
+                "es": "Presintonía 3"
+              }
+            },
+            {
+              "value": "4",
+              "label": {
+                "en": "Preset 4",
+                "fr": "Présélection 4",
+                "de": "Voreinstellung 4",
+                "es": "Presintonía 4"
+              }
+            },
+            {
+              "value": "5",
+              "label": {
+                "en": "Preset 5",
+                "fr": "Présélection 5",
+                "de": "Voreinstellung 5",
+                "es": "Presintonía 5"
+              }
+            },
+            {
+              "value": "6",
+              "label": {
+                "en": "Preset 6",
+                "fr": "Présélection 6",
+                "de": "Voreinstellung 6",
+                "es": "Presintonía 6"
+              }
+            }
+          ]
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "preset_name",
+          "type": "string",
+          "label": {
+            "en": "Preset name",
+            "fr": "Nom de la présélection",
+            "de": "Name der Voreinstellung",
+            "es": "Nombre de la presintonía"
+          }
+        }
+      ]
+    },
+    {
+      "key": "play_url",
+      "label": {
+        "en": "Play an audio address",
+        "fr": "Jouer une adresse audio",
+        "de": "Audio-Adresse abspielen",
+        "es": "Reproducir una dirección de audio"
+      },
+      "description": {
+        "en": "Plays an http:// stream or file through the speaker's UPnP renderer (no https). Not on every model.",
+        "fr": "Joue un flux ou un fichier http:// par le lecteur UPnP de l'enceinte (pas de https). Pas sur tous les modèles.",
+        "de": "Spielt einen http://-Stream oder eine Datei über den UPnP-Renderer des Lautsprechers ab (kein https). Nicht bei jedem Modell.",
+        "es": "Reproduce un flujo o un archivo http:// con el reproductor UPnP del altavoz (sin https). No en todos los modelos."
+      },
+      "timeout_seconds": 15,
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Speaker",
+            "fr": "Enceinte",
+            "de": "Lautsprecher",
+            "es": "Altavoz"
+          },
+          "required": true
+        },
+        {
+          "key": "url",
+          "type": "string",
+          "label": {
+            "en": "Address",
+            "fr": "Adresse",
+            "de": "Adresse",
+            "es": "Dirección"
+          },
+          "required": true,
+          "placeholder": {
+            "en": "e.g. http://192.168.1.10/sound.mp3",
+            "fr": "ex. http://192.168.1.10/son.mp3",
+            "de": "z. B. http://192.168.1.10/ton.mp3",
+            "es": "p. ej. http://192.168.1.10/sonido.mp3"
+          }
+        },
+        {
+          "key": "volume",
+          "type": "number",
+          "label": {
+            "en": "Volume (optional)",
+            "fr": "Volume (facultatif)",
+            "de": "Lautstärke (optional)",
+            "es": "Volumen (opcional)"
+          },
+          "required": false,
+          "min": 0,
+          "max": 100
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "player",
+      "label": {
+        "en": "SoundTouch player",
+        "fr": "Lecteur SoundTouch",
+        "de": "SoundTouch-Player",
+        "es": "Reproductor SoundTouch"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "What the speaker plays, its volume and group, the play buttons and the six presets.",
+        "fr": "Ce que joue l'enceinte, son volume et son groupe, les boutons de lecture et les présélections.",
+        "de": "Was der Lautsprecher spielt, Lautstärke, Gruppe, Wiedergabetasten und Voreinstellungen.",
+        "es": "Lo que reproduce el altavoz, su volumen y grupo, los botones de reproducción y presintonías."
+      },
+      "icon": "speaker",
+      "action_timeout_seconds": 15,
+      "settings": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Speaker",
+            "fr": "Enceinte",
+            "de": "Lautsprecher",
+            "es": "Altavoz"
+          },
+          "required": true
+        }
+      ]
     }
   ]
 }
