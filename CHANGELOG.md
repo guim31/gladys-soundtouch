@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-15
+
 ### Added
 
 - Bose SoundTouch speakers on the local network (SoundTouch 10, 20, 30, 300,
@@ -30,4 +32,5 @@ the notes of the version's GitHub Release.
 - Texts and documentation in English, French, German and Spanish.
 - `scripts/probe.mjs`, a read-only check of a real speaker.
 
-[Unreleased]: https://github.com/guim31/gladys-soundtouch/commits/main
+[Unreleased]: https://github.com/guim31/gladys-soundtouch/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/guim31/gladys-soundtouch/releases/tag/v1.0.1
