@@ -1,67 +1,189 @@
-# Template de démonstration
+# Bose SoundTouch
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Pilotez vos enceintes Bose SoundTouch (SoundTouch 10, 20, 30, 300, Wave,
+Lifestyle et les autres systèmes SoundTouch) depuis Gladys, en réseau local :
+marche, volume, sourdine, lecture et pause, morceau précédent et suivant, source,
+les six présélections, ce qui est joué et le groupe multi-room.
 
-## Ce que vous obtenez
+> **Développée sans le matériel : vos retours sont les bienvenus.** Cette
+> intégration a été écrite d'après la documentation « Bose SoundTouch Web API »
+> et les réponses enregistrées par d'autres projets open source, sans enceinte
+> sous la main. Dites-nous sur le forum Gladys ce qui marche et ce qui ne marche
+> pas.
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Cette intégration n'est pas affiliée à Bose. Bose et SoundTouch sont des marques
+de Bose Corporation.
+
+## Présentation
+
+Chaque enceinte devient un appareil Gladys, un lecteur de musique : la boîte
+**Musique** du tableau de bord de Gladys le pilote (lecture, pause, précédent,
+suivant, curseur de volume), et la boîte de l'appareil montre le reste. Ce qui
+est changé depuis l'enceinte, sa télécommande ou l'application SoundTouch arrive
+dans Gladys en moins d'une seconde, par les notifications de l'enceinte
+elle-même.
+
+Tout reste sur votre réseau : l'intégration parle directement aux enceintes,
+sans compte ni cloud. Bose a annoncé la fin du service cloud SoundTouch ; l'API
+locale qu'utilise cette intégration continue de fonctionner sans lui.
+
+## Prérequis
+
+- Gladys 5.2.0 ou plus récent.
+- Des enceintes SoundTouch sur le même réseau que Gladys, déjà installées avec
+  l'application SoundTouch (elles doivent être sur votre Wi-Fi ou en Ethernet).
+- Gladys doit joindre les enceintes sur les ports TCP 8090 (API), 8080
+  (notifications) et, pour l'action « Jouer une adresse audio », 8091 (UPnP).
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+1. Installez l'intégration (**Intégrations → Installer depuis GitHub** tant
+   qu'elle n'est pas dans le store), puis ouvrez son onglet **Configuration**.
+2. Les enceintes du même réseau sont trouvées automatiquement (mDNS, relayé par
+   Gladys). S'il en manque une, saisissez son adresse IP dans **Adresses IP des
+   enceintes** (plusieurs adresses : séparez-les par des virgules).
+   L'application SoundTouch l'affiche dans Paramètres, Paramètres de
+   l'enceinte, Informations. Donnez si possible une adresse fixe à vos enceintes
+   dans votre box.
+3. Choisissez la **Langue des textes** : les noms des fonctionnalités (fixés à
+   l'ajout d'une enceinte) et les textes écrits par l'intégration (source,
+   groupe, veille). Français par défaut.
+4. Enregistrez, puis ouvrez l'onglet **Découverte** et ajoutez vos enceintes.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+Le bouton **Rechercher les enceintes** cherche à nouveau les enceintes et liste
+celles trouvées, avec leur modèle, leur adresse et l'état de leurs
+notifications (en direct ou non).
 
-## Actions
+## L'appareil enceinte
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+| Fonctionnalité     | Ce qu'elle fait                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| Marche             | Allume l'enceinte (elle reprend ce qu'elle jouait) ou la met en veille                   |
+| Volume             | De 0 à 100, suit le bouton de volume et la télécommande                                  |
+| Sourdine           | Coupe ou rétablit le son                                                                 |
+| Lecture, Pause     | Boutons de la boîte Musique                                                              |
+| Précédent, Suivant | Morceau précédent ou suivant (sur les sources qui le permettent)                         |
+| État de la lecture | En lecture ou en pause, en lecture seule (la veille compte comme une pause)              |
+| Source             | AUX, Bluetooth ou une des présélections enregistrées ; « Autre » pour toute autre source |
+| En cours           | Le morceau, sinon la station, sinon la source ; « Veille » quand elle est éteinte        |
+| Artiste            | L'artiste, ou la station d'une radio qui diffuse un morceau ; « — » s'il n'y en a pas    |
+| Groupe multi-room  | « Hors groupe », « Pilote Cuisine, Chambre » ou « Suit Salon », en lecture seule         |
+
+La liste **Source** montre les présélections enregistrées sur l'enceinte avec
+leur nom (« Présélection 2 · FIP ») ; elle suit les présélections que vous
+enregistrez ou modifiez dans l'application SoundTouch. Choisir « Autre » ne fait
+rien : cela veut seulement dire que l'enceinte joue une source que Gladys ne
+sait pas choisir elle-même (Spotify, une radio hors présélections, la veille).
+AUX n'est proposé que sur les enceintes qui ont une entrée AUX.
+
+Les groupes multi-room sont affichés, pas créés : créez-les dans l'application
+SoundTouch.
+
+## Widget du tableau de bord
+
+Le widget **Lecteur SoundTouch** montre une enceinte (choisie dans ses
+réglages) :
+
+- le titre et l'artiste, avec la source ou la présélection ;
+- le volume, en direct ;
+- l'état (lecture, pause, veille, injoignable), la source et le groupe
+  multi-room ;
+- quatre boutons : précédent, lecture/pause (allumer quand l'enceinte est en
+  veille), suivant, et **Présélections**, qui ouvre la liste des six
+  présélections pour en lancer une.
+
+La boîte **Musique** de Gladys fonctionne aussi : choisissez-y l'enceinte.
 
 ## Scènes
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+### Déclencheur : Présélection SoundTouch lancée
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+**Présélection SoundTouch lancée** se déclenche quand une des six présélections
+démarre hors de Gladys : depuis les boutons de l'enceinte, sa télécommande ou
+l'application SoundTouch. Il se déclenche aussi quand l'enceinte se réveille
+sur une présélection. Il ne se déclenche pas quand Gladys lance elle-même la
+présélection (une scène, le widget, la liste Source) : une scène ne peut donc
+pas boucler dessus.
 
-## Tableau de bord
+Filtres : l'enceinte, et les présélections (vide pour n'importe laquelle).
+Variables : le numéro et le nom de la présélection.
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+### Action : Jouer une présélection SoundTouch
+
+**Jouer une présélection SoundTouch** lance la présélection 1 à 6 d'une
+enceinte, en l'allumant si besoin. Elle renvoie le nom de la présélection, pour
+les actions suivantes de la scène. Une présélection vide fait échouer l'action
+(la suite de la scène continue).
+
+### Action : Jouer une adresse audio
+
+**Jouer une adresse audio** envoie une adresse `http://` (un flux radio, un
+fichier son servi sur votre réseau) au lecteur UPnP de l'enceinte, à un volume
+facultatif. Les enceintes ne jouent pas les adresses `https://`. Tous les
+modèles n'ont pas le lecteur UPnP : sur ceux-là, l'action échoue.
+
+La marche, le volume et la source n'ont pas besoin d'action dédiée : utilisez
+l'action « Contrôler un appareil » du cœur sur les fonctionnalités de
+l'enceinte.
+
+## Exemples de scènes
+
+- **Réveil en radio** : à 7 h en semaine, « Jouer une présélection SoundTouch »
+  (présélection 1, votre radio du matin) dans la chambre, puis volume à 15.
+- **Un bouton de présélection comme interrupteur** : quand « Présélection
+  SoundTouch lancée » se déclenche pour la présélection 6 de l'enceinte du
+  salon, allumer les lampes du salon et fermer les volets : le bouton de
+  l'enceinte devient un bouton « soirée film ».
+- **Silence au départ** : quand la dernière personne quitte la maison, éteindre
+  toutes les enceintes.
+
+## Rafraîchissement et réseau
+
+- Les enceintes poussent chaque changement (volume, morceau, source,
+  présélections, groupe) par leur WebSocket de notifications : Gladys les suit
+  en temps réel.
+- L'intégration lit aussi chaque enceinte en HTTP toutes les 2 minutes (toutes
+  les 30 secondes quand ses notifications sont coupées), pour rattraper une
+  notification perdue et remarquer une enceinte débranchée. Cela fait six
+  petites requêtes par enceinte, sur votre réseau local seulement.
+- Les valeurs inchangées sont renvoyées à Gladys toutes les 6 heures, pour que
+  l'appareil n'affiche jamais « pas de valeur récente ».
+- Une nouvelle recherche a lieu toutes les 15 minutes, pour suivre une enceinte
+  dont l'adresse a changé (DHCP).
+- L'API web SoundTouch n'a ni compte, ni quota, ni clé. Elle est ouverte à
+  tout appareil de votre réseau : c'est ainsi que les enceintes sont faites.
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **Aucune enceinte trouvée** : vérifiez que l'enceinte joue depuis
+  l'application SoundTouch, puis saisissez son adresse IP dans la
+  configuration. La découverte automatique demande un Gladys qui relaie le mDNS
+  (5.2.0 ou plus) et un réseau qui laisse passer le mDNS (certains Wi-Fi
+  maillés et réseaux invités le bloquent).
+- **L'enceinte est injoignable** : elle est peut-être débranchée ou en veille
+  profonde (certains modèles quittent le réseau après une longue veille).
+  Appuyez sur un bouton de l'enceinte, puis sur **Rechercher les enceintes**.
+- **Les états arrivent en retard** : les notifications sont peut-être bloquées
+  entre Gladys et l'enceinte (port 8080) ; l'intégration lit alors l'enceinte
+  toutes les 30 secondes. **Rechercher les enceintes** affiche « interrogée »
+  au lieu de « en direct ».
+- **Une présélection manque dans la liste Source** : enregistrez-la d'abord sur
+  l'enceinte (application SoundTouch ou appui long sur le bouton de
+  présélection).
+- Réglez `LOG_LEVEL=debug` sur l'intégration pour voir chaque notification et
+  chaque rafraîchissement dans ses journaux.
+
+## Limites
+
+- Développée sans le matériel : le comportement sur une vraie enceinte n'est
+  pas encore vérifié.
+- Les annonces de Gladys (l'action de scène « Diffuser une notification ») ne
+  sont pas proposées : Gladys Plus les sert depuis une adresse `https://`, et
+  les enceintes ne jouent que les adresses `http://`.
+- Les groupes multi-room sont lus, pas créés ni modifiés.
+- Seuls AUX et Bluetooth peuvent être choisis comme entrées : les entrées HDMI
+  et TV des systèmes Lifestyle et SoundTouch 300, et les services de streaming,
+  apparaissent comme « Autre ».
+- Précédent et suivant ne marchent que sur les sources qui permettent de passer
+  un morceau (pas sur une radio).
+- Les graves, la tonalité et les alarmes de certains modèles ne sont pas gérés.

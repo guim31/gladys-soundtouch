@@ -1,240 +1,212 @@
+// -----------------------------------------------------------------------------
+// From a speaker to a Gladys device: features, values, commands.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  DEVICE_FEATURE_CATEGORIES,
-  DEVICE_FEATURE_TYPES,
-  DEVICE_POLL_FREQUENCIES,
-  DEVICE_TRANSPORTS,
-} from '@gladysassistant/integration-sdk';
+import { readFileSync } from 'node:fs';
 import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import {
-  DEVICE_BLUEPRINTS,
-  buildDiscoveredDevices,
-  buildTransportEntries,
-  createPoller,
-  findBlueprintByDevice,
-  identifyDevice,
-} from '../src/devices/index.js';
-import { simulateLanSession } from '../src/devices/plug.js';
-import { normalizeConfig } from '../src/config.js';
+  FEATURE_KEYS,
+  NOTHING,
+  buildDevice,
+  commandFor,
+  playingTexts,
+  sourceOptions,
+  speakerValues,
+  zoneText,
+} from '../src/devices.js';
+import {
+  parseInfo,
+  parseNowPlaying,
+  parsePresets,
+  parseSources,
+  parseVolume,
+  parseZone,
+} from '../src/soundtouch/model.js';
 
-const gladys = createFakeGladys();
-const config = normalizeConfig();
+const fixture = (name) =>
+  readFileSync(new URL(`./fixtures/soundtouch/${name}`, import.meta.url), 'utf8');
 
-test('every blueprint exposes the required shape', () => {
-  for (const bp of DEVICE_BLUEPRINTS) {
-    assert.equal(typeof bp.key, 'string', 'key must be a string');
-    assert.equal(typeof bp.deviceExternalId, 'function', 'deviceExternalId must be a function');
-    assert.equal(typeof bp.buildDevice, 'function', 'buildDevice must be a function');
-  }
-});
-
-test('buildDiscoveredDevices returns one payload per blueprint', () => {
-  const devices = buildDiscoveredDevices(gladys, config);
-  assert.equal(devices.length, DEVICE_BLUEPRINTS.length);
-  for (const device of devices) {
-    assert.equal(typeof device.name, 'string');
-    assert.ok(device.external_id, 'each device has an external_id');
-    assert.ok(Array.isArray(device.features) && device.features.length > 0);
-  }
-});
-
-test('Gladys accepts the discovery payload', async () => {
-  // The SDK fake checks the payload like the host API does: external_id
-  // prefix, known category/type/unit, poll_frequency... A refusal is a 400
-  // for the WHOLE list, so no device would show up in the Discovery tab.
-  const fresh = createFakeGladys();
-  await fresh.publishDiscoveredDevices(buildDiscoveredDevices(fresh, config));
-  assert.equal(fresh.fake.discoveredDevices.length, DEVICE_BLUEPRINTS.length);
-});
-
-test('Gladys polls exactly the devices that implement onPoll', () => {
-  const frequencies = Object.values(DEVICE_POLL_FREQUENCIES);
-  for (const bp of DEVICE_BLUEPRINTS) {
-    const device = bp.buildDevice(gladys, config);
-    if (typeof bp.onPoll === 'function') {
-      assert.equal(device.should_poll, true, `${bp.key}: without should_poll, never polled`);
-      assert.ok(frequencies.includes(device.poll_frequency), `${bp.key}: invalid poll_frequency`);
-    } else {
-      assert.notEqual(device.should_poll, true, `${bp.key}: polled for nothing`);
-    }
-  }
-});
-
-test('the poller reads a device at the refresh interval of the config', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'] });
-  const fresh = createFakeGladys();
-  const pollDevice = createPoller();
-  const plug = {
-    external_id: DEVICE_BLUEPRINTS.find((bp) => bp.key === 'plug').deviceExternalId(fresh),
+function speaker(overrides = {}) {
+  return {
+    id: '020000000001',
+    host: '192.0.2.1',
+    info: parseInfo(fixture('ha_device1_info.xml')),
+    nowPlaying: parseNowPlaying(fixture('ha_device1_now_playing_radio.xml')),
+    volume: parseVolume(fixture('ha_device1_volume.xml')),
+    presets: parsePresets(fixture('ha_device1_presets.xml')),
+    sources: parseSources(fixture('doc_sources.xml')),
+    zone: parseZone(fixture('ha_device1_getZone_master.xml')),
+    zoneKnown: true,
+    ...overrides,
   };
-  const everyFiveMinutes = normalizeConfig({ poll_frequency: 300 });
+}
 
-  assert.equal(await pollDevice(fresh, plug, everyFiveMinutes), true, 'the first poll reads');
-  for (let minute = 1; minute < 5; minute += 1) {
-    t.mock.timers.tick(DEVICE_POLL_FREQUENCIES.EVERY_MINUTES);
-    assert.equal(
-      await pollDevice(fresh, plug, everyFiveMinutes),
-      false,
-      `skipped at ${minute} min`,
+const nowPlaying = (name) => parseNowPlaying(fixture(name));
+
+test('one music player device per speaker, keyed on its device id', () => {
+  const gladys = createFakeGladys();
+  const device = buildDevice(gladys, speaker(), { language: 'en' });
+  assert.equal(device.external_id, 'ext:test-integration:speaker:020000000001');
+  assert.equal(device.name, 'My SoundTouch 1');
+  assert.equal(device.should_poll, false);
+  assert.equal(device.poll_frequency, undefined);
+  assert.deepEqual(device.params, [
+    { name: 'IP_ADDRESS', value: '192.0.2.1' },
+    { name: 'MODEL', value: 'SoundTouch 10' },
+    { name: 'FIRMWARE', value: '27.0.3.46298.4608935' },
+  ]);
+  assert.deepEqual(
+    device.features.map((feature) => `${feature.category}/${feature.type}`),
+    [
+      'switch/binary',
+      'music/volume',
+      'switch/binary',
+      'music/play',
+      'music/pause',
+      'music/previous',
+      'music/next',
+      'music/playback_state',
+      'text/select',
+      'text/text',
+      'text/text',
+      'text/text',
+    ],
+  );
+  // The Music box needs exactly these to show a speaker.
+  for (const type of ['play', 'pause', 'previous', 'next', 'volume', 'playback_state']) {
+    assert.ok(
+      device.features.some((feature) => feature.type === type),
+      type,
     );
   }
-  // Gladys' tick may land a little early: the read is still due.
-  t.mock.timers.tick(DEVICE_POLL_FREQUENCIES.EVERY_MINUTES - 50);
-  assert.equal(await pollDevice(fresh, plug, everyFiveMinutes), true, 'read again at 5 min');
 });
 
-test('the poller retries a failed read at the next poll', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'] });
-  const pollDevice = createPoller();
-  const station = {
-    external_id: DEVICE_BLUEPRINTS.find((bp) => bp.key === 'weather-station').deviceExternalId(
-      gladys,
-    ),
-  };
-  t.mock.method(globalThis, 'fetch', async () => {
-    throw new Error('network down');
-  });
-  await assert.rejects(pollDevice(gladys, station, config), /network down/);
-
-  globalThis.fetch.mock.mockImplementation(async () => ({
-    ok: true,
-    json: async () => ({ current: { temperature_2m: 21.4, relative_humidity_2m: 55 } }),
-  }));
-  t.mock.timers.tick(DEVICE_POLL_FREQUENCIES.EVERY_MINUTES);
-  assert.equal(await pollDevice(gladys, station, config), true, 'not delayed by the failure');
-  assert.equal(gladys.fake.lastState(`${station.external_id}:temperature`), 21.4);
-});
-
-test('the poller ignores a device that has nothing to poll', async () => {
-  const pollDevice = createPoller();
-  const switchId = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'switch').deviceExternalId(gladys);
-  assert.equal(await pollDevice(gladys, { external_id: switchId }, config), false);
-  assert.equal(await pollDevice(gladys, { external_id: 'does-not-exist' }, config), false);
-});
-
-test('an idle plug publishes its 0 W once, then only as a heartbeat', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'] });
-  const fresh = createFakeGladys();
-  const plug = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'plug');
-  await plug.onPoll(fresh, config);
-  await plug.onPoll(fresh, config);
-  assert.equal(fresh.fake.states.length, 1, 'an unchanged value is not sent again');
-  t.mock.timers.tick(30 * 60 * 1000);
-  await plug.onPoll(fresh, config);
-  assert.equal(fresh.fake.states.length, 2, 're-sent after 30 minutes');
-});
-
-test('device external_ids are unique across the catalog', () => {
-  const devices = buildDiscoveredDevices(gladys, config);
-  const ids = devices.map((d) => d.external_id);
-  assert.equal(new Set(ids).size, ids.length, 'no two devices may share an external_id');
-});
-
-test('findBlueprintByDevice routes an external_id back to its owner blueprint', () => {
-  for (const bp of DEVICE_BLUEPRINTS) {
-    const external_id = bp.deviceExternalId(gladys);
-    const found = findBlueprintByDevice(gladys, { external_id });
-    assert.equal(found, bp);
-  }
-});
-
-test('findBlueprintByDevice returns undefined for an unknown device', () => {
-  const found = findBlueprintByDevice(gladys, { external_id: 'does-not-exist' });
-  assert.equal(found, undefined);
-});
-
-test('manifest action keys are unique across blueprints', () => {
-  const keys = DEVICE_BLUEPRINTS.flatMap((bp) => Object.keys(bp.actions ?? {}));
-  assert.equal(new Set(keys).size, keys.length, 'no two blueprints may register the same action');
-});
-
-test('the camera declares a camera/image feature', () => {
-  const cameraBlueprint = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'camera');
-  const device = cameraBlueprint.buildDevice(gladys, config);
-  const imageFeature = device.features.find((f) => f.category === DEVICE_FEATURE_CATEGORIES.CAMERA);
-  assert.ok(imageFeature, 'the camera must carry a camera feature');
-  assert.equal(imageFeature.type, DEVICE_FEATURE_TYPES.CAMERA.IMAGE);
-  assert.equal(imageFeature.read_only, true);
-});
-
-test('onGetImage resolves a base64 JPEG under the 150 KB limit', async () => {
-  const cameraBlueprint = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'camera');
-  const image = await cameraBlueprint.onGetImage(gladys, {
-    device: { external_id: cameraBlueprint.deviceExternalId(gladys) },
-    config,
-  });
-  assert.match(image, /^image\/jpg;base64,/);
-  assert.ok(image.length <= 150 * 1024, 'the image must stay under 150 KB');
-});
-
-test('buildTransportEntries reports one valid entry per dual-channel device', () => {
-  const entries = buildTransportEntries(gladys, config);
-  assert.ok(entries.length > 0, 'the demo plug reports its transport');
-  const validValues = Object.values(DEVICE_TRANSPORTS);
-  for (const entry of entries) {
-    assert.ok(entry.external_id, 'each entry targets a device external_id');
-    assert.ok(validValues.includes(entry.transport), `invalid transport: ${entry.transport}`);
-  }
-});
-
-test('the demo plug honors the GLADYS_PREFER_LOCAL preference', () => {
-  const local = buildTransportEntries(gladys, normalizeConfig({ GLADYS_PREFER_LOCAL: true }));
-  const cloud = buildTransportEntries(gladys, normalizeConfig({ GLADYS_PREFER_LOCAL: false }));
-  const plugId = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'plug').deviceExternalId(gladys);
-  assert.equal(local.find((e) => e.external_id === plugId).transport, DEVICE_TRANSPORTS.LOCAL);
-  assert.equal(cloud.find((e) => e.external_id === plugId).transport, DEVICE_TRANSPORTS.CLOUD);
-});
-
-test('nominal transport entries never carry a leftover degraded flag', () => {
-  const entries = buildTransportEntries(gladys, config);
-  for (const entry of entries) {
-    assert.equal(entry.degraded, undefined, 'nominal entries must clear the degraded state');
-  }
-});
-
-test('the plug reports a degraded cloud fallback when the LAN session is refused', () => {
-  const plugId = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'plug').deviceExternalId(gladys);
-  simulateLanSession(false);
-  try {
-    const entries = buildTransportEntries(gladys, normalizeConfig({ GLADYS_PREFER_LOCAL: true }));
-    const entry = entries.find((e) => e.external_id === plugId);
-    assert.equal(entry.transport, DEVICE_TRANSPORTS.CLOUD, 'falls back to cloud');
-    assert.equal(entry.degraded, true, 'the fallback is flagged degraded');
-    assert.ok(entry.message.en, 'the reason carries at least the mandatory `en` text');
-    assert.ok(entry.message.en.length <= 200, 'tooltip messages are capped at 200 characters');
-  } finally {
-    simulateLanSession(true);
-  }
-});
-
-test('identifyDevice signals a device that implements identify', async () => {
-  const lightId = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'light').deviceExternalId(gladys);
-  const message = await identifyDevice(gladys, lightId, config);
-  assert.match(message.en, /signalling/);
-  assert.ok(message.fr, 'the message is multi-language');
-});
-
-test('identifyDevice explains when the device has no way to signal itself', async () => {
-  const weatherId = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'weather-station').deviceExternalId(
-    gladys,
+test('the source select: AUX, Bluetooth and the stored presets, named', () => {
+  assert.deepEqual(
+    sourceOptions(speaker(), 'fr').map(({ value, label }) => `${value}=${label}`),
+    [
+      'other=Autre',
+      'AUX=AUX',
+      'BLUETOOTH=Bluetooth',
+      'preset-1=Présélection 1',
+      'preset-2=Présélection 2 · MockStation',
+    ],
   );
-  const message = await identifyDevice(gladys, weatherId, config);
-  assert.match(message.en, /no way to signal/);
+  // A speaker without AUX in /sources (SoundTouch 10 series III style).
+  const noAux = speaker({ sources: parseSources(fixture('doc_sources_no_aux.xml')) });
+  assert.ok(!sourceOptions(noAux, 'en').some((option) => option.value === 'AUX'));
+  // No /sources answer: both inputs are offered.
+  const old = speaker({ sources: null });
+  assert.ok(sourceOptions(old, 'en').some((option) => option.value === 'AUX'));
 });
 
-test('the test_weather action returns a multi-language message', async () => {
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = async () => ({
-    ok: true,
-    json: async () => ({ current: { temperature_2m: 21.4, relative_humidity_2m: 55 } }),
-  });
-  try {
-    const weatherStation = DEVICE_BLUEPRINTS.find((bp) => bp.key === 'weather-station');
-    const message = await weatherStation.actions.test_weather(gladys, { fields: {}, config });
-    assert.match(message.en, /21\.4/);
-    assert.match(message.fr, /21\.4/);
-  } finally {
-    globalThis.fetch = realFetch;
+test('values while a preset radio plays', () => {
+  assert.deepEqual(
+    speakerValues(speaker(), 'en', (id) => (id === '020000000002' ? 'Bedroom' : id)),
+    {
+      power: 1,
+      'playback-state': 1,
+      source: { text: 'preset-2' },
+      title: { text: 'MockTrack' },
+      artist: { text: 'MockArtist' },
+      volume: 12,
+      mute: 0,
+      zone: { text: 'Leads Bedroom, 020000000003' },
+    },
+  );
+});
+
+test('values in standby, on AUX, on Bluetooth, paused', () => {
+  const standby = speakerValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_standby.xml') }),
+    'fr',
+  );
+  assert.equal(standby.power, 0);
+  assert.equal(standby['playback-state'], 0);
+  assert.deepEqual(standby.source, { text: 'other' });
+  assert.deepEqual(standby.title, { text: 'Veille' });
+  assert.deepEqual(standby.artist, { text: NOTHING });
+
+  const aux = speakerValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_aux.xml') }),
+    'en',
+  );
+  assert.deepEqual(aux.source, { text: 'AUX' });
+  assert.deepEqual(aux.title, { text: 'AUX IN' });
+
+  const bluetooth = speakerValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_bluetooth.xml') }),
+    'en',
+  );
+  assert.deepEqual(bluetooth.source, { text: 'BLUETOOTH' });
+
+  const paused = speakerValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_upnp_paused.xml') }),
+    'en',
+  );
+  assert.equal(paused.power, 1);
+  assert.equal(paused['playback-state'], 0);
+  // The UPnP address is stored as preset 1.
+  assert.deepEqual(paused.source, { text: 'preset-1' });
+});
+
+test('a text state is never empty (Gladys would ignore it)', () => {
+  for (const name of [
+    'ha_device1_now_playing_aux.xml',
+    'ha_device1_now_playing_standby.xml',
+    'lib_radio.xml',
+    'lib_stored_music.xml',
+  ]) {
+    const { title, artist } = playingTexts(nowPlaying(name), 'de');
+    assert.ok(title.trim() && artist.trim(), name);
   }
+  // A radio without song: the station is the title.
+  assert.deepEqual(playingTexts(nowPlaying('lib_radio.xml'), 'en'), {
+    title: 'RMC Info Talk Sport',
+    artist: NOTHING,
+  });
+});
+
+test('the group text, from the leader and from a member', () => {
+  const names = { '020000000001': 'Kitchen', '020000000002': 'Bedroom' };
+  const nameOf = (id) => names[id] ?? id.toUpperCase();
+  assert.equal(zoneText(speaker(), 'fr', nameOf), 'Pilote Bedroom, 020000000003');
+  const member = speaker({
+    id: '020000000002',
+    zone: parseZone(fixture('ha_device2_getZone_slave.xml')),
+  });
+  assert.equal(zoneText(member, 'de', nameOf), 'Folgt Kitchen');
+  assert.equal(zoneText(speaker({ zone: null }), 'es', nameOf), 'Sin grupo');
+});
+
+test('power and mute toggle on the speaker: only sent when the state differs', () => {
+  const on = speaker();
+  assert.equal(commandFor(on, FEATURE_KEYS.POWER, 1), null);
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.POWER, 0), { key: 'POWER' });
+  const standby = speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_standby.xml') });
+  assert.deepEqual(commandFor(standby, FEATURE_KEYS.POWER, 1), { key: 'POWER' });
+  assert.equal(commandFor(on, FEATURE_KEYS.MUTE, 0), null);
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.MUTE, 1), { key: 'MUTE' });
+});
+
+test('the other commands', () => {
+  const on = speaker();
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.VOLUME, 33.4), { volume: 33 });
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.VOLUME, 140), { volume: 100 });
+  assert.throws(() => commandFor(on, FEATURE_KEYS.VOLUME, 'x'));
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.PLAY, 1), { key: 'PLAY' });
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.PAUSE, 1), { key: 'PAUSE' });
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.NEXT, 1), { key: 'NEXT_TRACK' });
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.PREVIOUS, 1), { key: 'PREV_TRACK' });
+  assert.equal(commandFor(on, FEATURE_KEYS.SOURCE, 'preset-2').preset.id, 2);
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.SOURCE, 'AUX'), {
+    input: { value: 'AUX', source: 'AUX', account: 'AUX' },
+  });
+  assert.equal(commandFor(on, FEATURE_KEYS.SOURCE, 'other'), null);
+  assert.throws(() => commandFor(on, FEATURE_KEYS.SOURCE, 'preset-5'), /empty/);
+  assert.throws(() => commandFor(on, FEATURE_KEYS.SOURCE, 'SPOTIFY'), /Unknown source/);
+  assert.throws(() => commandFor(on, FEATURE_KEYS.TITLE, 'x'), /no command/);
+  assert.throws(() => commandFor(on, FEATURE_KEYS.PLAYBACK, 1), /no command/);
 });

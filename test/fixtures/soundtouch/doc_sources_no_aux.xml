@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<sources deviceID="020000000003">
+    <sourceItem source="BLUETOOTH" status="READY" isLocal="true" multiroomallowed="true" />
+    <sourceItem source="TUNEIN" status="READY" isLocal="false" multiroomallowed="true" />
+    <sourceItem source="SPOTIFY" sourceAccount="SpotifyConnectUserName" status="READY" isLocal="false" multiroomallowed="true">SpotifyConnectUserName</sourceItem>
+</sources>

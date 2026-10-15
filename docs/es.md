@@ -1,0 +1,188 @@
+# Bose SoundTouch
+
+Controle sus altavoces Bose SoundTouch (SoundTouch 10, 20, 30, 300, Wave,
+Lifestyle y los demás sistemas SoundTouch) desde Gladys, en la red local:
+encendido, volumen, silencio, reproducción y pausa, pista anterior y siguiente,
+fuente, las seis presintonías, lo que se reproduce y el grupo multisala.
+
+> **Desarrollada sin el hardware: sus comentarios son bienvenidos.** Esta
+> integración se ha escrito a partir de la documentación «Bose SoundTouch Web
+> API» y de las respuestas grabadas por otros proyectos de código abierto, sin
+> un altavoz a mano. Cuéntenos en el foro de Gladys lo que funciona y lo que no.
+
+Esta integración no está afiliada a Bose. Bose y SoundTouch son marcas de Bose
+Corporation.
+
+## Presentación
+
+Cada altavoz se convierte en un dispositivo de Gladys, un reproductor de música:
+el cuadro **Música** del panel de Gladys lo controla (reproducir, pausa,
+anterior, siguiente, control de volumen), y el cuadro del dispositivo muestra el
+resto. Lo que se cambia desde el altavoz, su mando a distancia o la aplicación
+SoundTouch llega a Gladys en menos de un segundo, mediante las notificaciones
+del propio altavoz.
+
+Todo se queda en su red: la integración habla directamente con los altavoces,
+sin cuenta ni nube. Bose ha anunciado el fin del servicio en la nube SoundTouch;
+la API local que usa esta integración sigue funcionando sin él.
+
+## Requisitos
+
+- Gladys 5.2.0 o posterior.
+- Altavoces SoundTouch en la misma red que Gladys, ya configurados con la
+  aplicación SoundTouch (deben estar en su Wi-Fi o por Ethernet).
+- Gladys debe llegar a los altavoces por los puertos TCP 8090 (API), 8080
+  (notificaciones) y, para la acción «Reproducir una dirección de audio», 8091
+  (UPnP).
+
+## Configuración
+
+1. Instale la integración (**Integraciones → Instalar desde GitHub** mientras
+   no esté en la tienda) y abra su pestaña **Configuración**.
+2. Los altavoces de la misma red se encuentran automáticamente (mDNS,
+   retransmitido por Gladys). Si falta alguno, introduzca su dirección IP en
+   **Direcciones IP de los altavoces** (varias direcciones: sepárelas con
+   comas). La aplicación SoundTouch la muestra en Ajustes, Ajustes del
+   altavoz, Información. Si puede, dé a sus altavoces una dirección fija en su
+   router.
+3. Elija el **Idioma de los textos**: los nombres de las funciones (fijados al
+   añadir un altavoz) y los textos que escribe la integración (fuente, grupo,
+   en espera). Francés por defecto.
+4. Guarde, abra la pestaña **Descubrir** y añada sus altavoces.
+
+El botón **Buscar altavoces** busca de nuevo los altavoces y muestra los
+encontrados, con su modelo, su dirección y el estado de sus notificaciones (en
+directo o consultado).
+
+## El dispositivo altavoz
+
+| Función                | Qué hace                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| Encendido              | Enciende el altavoz (retoma lo que reproducía) o lo pone en espera                    |
+| Volumen                | De 0 a 100, sigue el botón de volumen y el mando a distancia                          |
+| Silencio               | Silencia o devuelve el sonido                                                         |
+| Reproducir, Pausa      | Botones del cuadro Música                                                             |
+| Anterior, Siguiente    | Pista anterior o siguiente (en las fuentes que lo permiten)                           |
+| Estado de reproducción | Reproduciendo o en pausa, solo lectura (la espera cuenta como pausa)                  |
+| Fuente                 | AUX, Bluetooth o una de las presintonías guardadas; «Otra» para cualquier otra fuente |
+| Reproduciendo          | La pista, si no la emisora, si no la fuente; «En espera» cuando está apagado          |
+| Artista                | El artista, o la emisora de una radio que emite una pista; «—» si no hay ninguno      |
+| Grupo multisala        | «Sin grupo», «Dirige Cocina, Dormitorio» o «Sigue a Salón», solo lectura              |
+
+La lista **Fuente** muestra las presintonías guardadas en el altavoz con su
+nombre («Presintonía 2 · FIP»); sigue las presintonías que guarda o cambia en
+la aplicación SoundTouch. Elegir «Otra» no hace nada: solo significa que el
+altavoz reproduce una fuente que Gladys no puede elegir por sí misma (Spotify,
+una radio fuera de las presintonías, la espera). AUX solo se ofrece en los
+altavoces que tienen una entrada AUX.
+
+Los grupos multisala se muestran, no se crean: créelos en la aplicación
+SoundTouch.
+
+## Widget del panel
+
+El widget **Reproductor SoundTouch** muestra un altavoz (elegido en su
+configuración):
+
+- el título y el artista, con la fuente o la presintonía;
+- el volumen, en directo;
+- el estado (reproduciendo, en pausa, en espera, inaccesible), la fuente y el
+  grupo multisala;
+- cuatro botones: anterior, reproducir/pausa (encender cuando el altavoz está
+  en espera), siguiente y **Presintonías**, que abre la lista de las seis
+  presintonías para iniciar una.
+
+El cuadro **Música** de Gladys también funciona: elija en él el altavoz.
+
+## Escenas
+
+### Disparador: Presintonía SoundTouch iniciada
+
+**Presintonía SoundTouch iniciada** se dispara cuando una de las seis
+presintonías se inicia fuera de Gladys: desde los botones del altavoz, su mando
+a distancia o la aplicación SoundTouch. También se dispara cuando el altavoz se
+despierta en una presintonía. No se dispara cuando Gladys inicia ella misma la
+presintonía (una escena, el widget, la lista Fuente), así que una escena no
+puede entrar en bucle con él.
+
+Filtros: el altavoz y las presintonías (vacío para cualquiera). Variables: el
+número y el nombre de la presintonía.
+
+### Acción: Reproducir una presintonía SoundTouch
+
+**Reproducir una presintonía SoundTouch** inicia la presintonía 1 a 6 de un
+altavoz y lo enciende si es necesario. Devuelve el nombre de la presintonía,
+para las acciones siguientes de la escena. Una presintonía vacía hace fallar la
+acción (el resto de la escena continúa).
+
+### Acción: Reproducir una dirección de audio
+
+**Reproducir una dirección de audio** envía una dirección `http://` (un flujo
+de radio, un archivo de sonido servido en su red) al reproductor UPnP del
+altavoz, con un volumen opcional. Los altavoces no reproducen direcciones
+`https://`. No todos los modelos tienen el reproductor UPnP: en esos, la acción
+falla.
+
+El encendido, el volumen y la fuente no necesitan una acción propia: use la
+acción «Controlar un dispositivo» del núcleo sobre las funciones del altavoz.
+
+## Ejemplos de escenas
+
+- **Despertar con la radio**: a las 7:00 los días laborables, «Reproducir una
+  presintonía SoundTouch» (presintonía 1, su radio de la mañana) en el
+  dormitorio y luego volumen a 15.
+- **Un botón de presintonía como interruptor**: cuando «Presintonía SoundTouch
+  iniciada» se dispara para la presintonía 6 del altavoz del salón, encender
+  las lámparas del salón y cerrar las persianas: el botón del altavoz se
+  convierte en un botón de «noche de cine».
+- **Silencio al salir**: cuando la última persona sale de casa, apagar todos
+  los altavoces.
+
+## Actualización y red
+
+- Los altavoces envían cada cambio (volumen, pista, fuente, presintonías,
+  grupo) por su WebSocket de notificaciones: Gladys los sigue en tiempo real.
+- La integración también lee cada altavoz por HTTP cada 2 minutos (cada 30
+  segundos mientras sus notificaciones están cortadas), para recuperar una
+  notificación perdida y detectar un altavoz desenchufado. Son seis pequeñas
+  peticiones por altavoz, solo en su red local.
+- Los valores sin cambios se envían de nuevo a Gladys cada 6 horas, para que el
+  dispositivo nunca muestre «sin valor reciente».
+- Cada 15 minutos se hace una nueva búsqueda, para seguir a un altavoz cuya
+  dirección ha cambiado (DHCP).
+- La API web de SoundTouch no tiene cuenta, ni cuota, ni clave. Está abierta a
+  cualquier dispositivo de su red: así están hechos los altavoces.
+
+## Solución de problemas
+
+- **No se encuentra ningún altavoz**: compruebe que el altavoz reproduce desde
+  la aplicación SoundTouch y luego introduzca su dirección IP en la
+  configuración. El descubrimiento automático necesita un Gladys que retransmita
+  el mDNS (5.2.0 o posterior) y una red que deje pasar el mDNS (algunas redes
+  Wi-Fi en malla y de invitados no lo hacen).
+- **El altavoz aparece inaccesible**: puede estar desenchufado o en espera
+  profunda (algunos modelos salen de la red tras una espera larga). Pulse un
+  botón del altavoz y luego **Buscar altavoces**.
+- **Los estados llegan con retraso**: puede que las notificaciones estén
+  bloqueadas entre Gladys y el altavoz (puerto 8080); la integración lee
+  entonces el altavoz cada 30 segundos. **Buscar altavoces** muestra
+  «consultado» en lugar de «en directo».
+- **Falta una presintonía en la lista Fuente**: guárdela primero en el altavoz
+  (aplicación SoundTouch o pulsación larga en el botón de presintonía).
+- Configure `LOG_LEVEL=debug` en la integración para ver cada notificación y
+  cada actualización en sus registros.
+
+## Limitaciones
+
+- Desarrollada sin el hardware: el comportamiento con un altavoz real aún no se
+  ha verificado.
+- Los anuncios de Gladys (la acción de escena «Difundir una notificación») no
+  se ofrecen: Gladys Plus los sirve desde una dirección `https://`, y los
+  altavoces solo reproducen direcciones `http://`.
+- Los grupos multisala se leen, no se crean ni se modifican.
+- Solo AUX y Bluetooth pueden elegirse como entradas: las entradas HDMI y TV de
+  los sistemas Lifestyle y SoundTouch 300, y los servicios de streaming,
+  aparecen como «Otra».
+- Anterior y siguiente solo funcionan en las fuentes que permiten saltar pistas
+  (no en una radio).
+- Los graves, el tono y las alarmas de algunos modelos no están soportados.
