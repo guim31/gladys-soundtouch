@@ -1,6 +1,6 @@
 {
   "name": "gladys-soundtouch",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Gladys Assistant integration for Bose SoundTouch speakers, over their local web API.",
   "type": "module",

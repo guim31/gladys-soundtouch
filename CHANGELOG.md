@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-26
+
 ### Added
 
 - Gladys 5.3 music player: each speaker now publishes what it plays to the
@@ -62,5 +64,6 @@ the notes of the version's GitHub Release.
 - Texts and documentation in English, French, German and Spanish.
 - `scripts/probe.mjs`, a read-only check of a real speaker.
 
-[Unreleased]: https://github.com/guim31/gladys-soundtouch/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/guim31/gladys-soundtouch/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/guim31/gladys-soundtouch/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/guim31/gladys-soundtouch/releases/tag/v1.0.1
