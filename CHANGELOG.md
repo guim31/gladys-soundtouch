@@ -15,14 +15,16 @@ the notes of the version's GitHub Release.
 - Gladys 5.3 music player: each speaker now publishes what it plays to the
   Music box of the dashboard: title, artist, album, artwork, duration and
   position (moved forward by the dashboard itself, never sent every second),
-  shuffle and repeat (on the sources that have them: Spotify, stored music…),
+  shuffle and repeat (on the sources that have them: Spotify, stored music…;
+  off elsewhere),
   mute and volume. Playback state is writable: play, pause and **stop**.
 - Music panel: the six presets of the speaker, with their cover, playable from
   the panel and from the `music.play-media` scene action (sent back to the
   speaker like the preset buttons, never as a long press that would store one).
 - Artwork served to Gladys through its proxy: Spotify and TuneIn covers as
   they are, a large cover from a media server (stored music) made small in the
-  container, without any image library.
+  container with the small pure-JavaScript `jpeg-js` encoder (a runtime
+  dependency).
 
 ### Changed
 

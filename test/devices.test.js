@@ -28,6 +28,7 @@ import {
   parseVolume,
   parseZone,
 } from '../src/soundtouch/model.js';
+import { SoundTouchHub } from '../src/hub.js';
 
 const fixture = (name) =>
   readFileSync(new URL(`./fixtures/soundtouch/${name}`, import.meta.url), 'utf8');
@@ -167,6 +168,8 @@ test('values while a preset radio plays', () => {
     artwork_url: 'http://cdn-profiles.tunein.com/sXXXXX/images/logoq.png',
     duration: 0,
     position: 75,
+    shuffle: 0,
+    repeat: 0,
     volume: 12,
     mute: 0,
   });
@@ -216,6 +219,8 @@ test('music values: standby clears everything, buffering is 3, stop is idle', ()
     artwork_url: null,
     duration: 0,
     position: 0,
+    shuffle: 0,
+    repeat: 0,
     volume: 12,
     mute: 0,
   });
@@ -383,4 +388,62 @@ test('the music player commands: playback state, shuffle, repeat', () => {
   assert.deepEqual(commandFor(spotify, FEATURE_KEYS.REPEAT, 2), { key: 'REPEAT_ONE' });
   assert.equal(commandFor(spotify, FEATURE_KEYS.REPEAT, 0), null);
   assert.throws(() => commandFor(spotify, FEATURE_KEYS.REPEAT, 5), /Invalid repeat/);
+});
+
+test('shuffle and repeat go back to off on a source without these modes', () => {
+  const spotify = { ...nowPlaying('lib_spotify.xml'), shuffle: 'SHUFFLE_ON', repeat: 'REPEAT_ALL' };
+  const on = musicValues(speaker({ nowPlaying: spotify }), 'en', 0);
+  assert.deepEqual([on.shuffle, on.repeat], [1, 1]);
+  const radio = musicValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_radio.xml') }),
+    'en',
+    0,
+  );
+  assert.deepEqual([radio.shuffle, radio.repeat], [0, 0]);
+});
+
+test('a state change without <time> keeps the position reached, not the last sample', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const setNowPlaying = (target, next, options) =>
+    SoundTouchHub.prototype.setNowPlaying.call(null, target, next, options);
+  const target = { nowPlaying: null, presets: [] };
+  setNowPlaying(target, { ...nowPlaying('lib_spotify.xml'), position: 30 });
+  t.mock.timers.tick(60_000);
+  assert.equal(positionOf(target, Date.now()), 90);
+  // Buffering (partial push, no <time>): 90, not the sample of 30.
+  const buffering = parseUpdate(
+    `<updates deviceID="11223344">${fixture('lib_spotify_buffering.xml')}</updates>`,
+  ).payload;
+  setNowPlaying(target, buffering, { merge: true });
+  assert.equal(target.nowPlaying.playStatus, 'BUFFERING_STATE');
+  assert.equal(positionOf(target, Date.now()), 90);
+  // 10 s of buffering are not played.
+  t.mock.timers.tick(10_000);
+  assert.equal(positionOf(target, Date.now()), 90);
+  setNowPlaying(target, { ...buffering, playStatus: 'PLAY_STATE' }, { merge: true });
+  assert.equal(positionOf(target, Date.now()), 90);
+  t.mock.timers.tick(5_000);
+  assert.equal(positionOf(target, Date.now()), 95);
+});
+
+test('a cover being downloaded keeps the one shown', () => {
+  const setNowPlaying = (target, next, options) =>
+    SoundTouchHub.prototype.setNowPlaying.call(null, target, next, options);
+  const spotify = nowPlaying('lib_spotify.xml');
+  assert.ok(spotify.art);
+  const target = { nowPlaying: null, presets: [] };
+  setNowPlaying(target, spotify);
+  const next = parseNowPlaying(
+    fixture('lib_spotify.xml')
+      .replace('IMAGE_PRESENT', 'DOWNLOADING')
+      .replace(/<track>[^<]*</, '<track>Next one<'),
+  );
+  assert.equal(next.art, null);
+  assert.equal(next.artPending, true);
+  setNowPlaying(target, next);
+  assert.equal(target.nowPlaying.track, 'Next one');
+  assert.equal(target.nowPlaying.art, spotify.art);
+  // No cover at all: nothing kept.
+  setNowPlaying(target, { ...next, artPending: false });
+  assert.equal(target.nowPlaying.art, null);
 });

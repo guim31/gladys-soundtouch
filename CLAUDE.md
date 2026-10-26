@@ -9,7 +9,8 @@ A Gladys Assistant **external integration**: a Node.js service (Node 22+, ESM,
 no build step) that runs in its own sandboxed Docker container and talks to
 Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
-its only runtime dependency. It started from the official JavaScript template.
+with `jpeg-js` (artwork resizing) as the only other runtime dependency: the
+image installs with `npm ci --omit=dev`, `test/runtime-deps.test.js` checks it. It started from the official JavaScript template.
 
 It drives **Bose SoundTouch** speakers over their local web API (HTTP 8090,
 notification WebSocket 8080, UPnP renderer 8091). See "Bose SoundTouch" below.

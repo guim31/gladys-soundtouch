@@ -514,9 +514,8 @@ export function musicTexts(nowPlaying, language) {
 
 /**
  * The now playing of a speaker as publishNowPlaying takes it (keys are the
- * SDK's: playback_state, title, artwork_url…). Only what is known: shuffle and
- * repeat only on a source that reports them (another source leaves them
- * unchanged), volume and mute once /volume was read.
+ * SDK's: playback_state, title, artwork_url…). Shuffle and repeat are off on
+ * a source that does not report them; volume and mute once /volume was read.
  * @param {object} speaker hub speaker: nowPlaying, volume
  * @param {string} language
  * @param {number} position seconds, from positionOf
@@ -531,12 +530,10 @@ export function musicValues(speaker, language, position) {
     values.artwork_url = on ? (nowPlaying.art ?? nowPlaying.content?.art ?? null) : null;
     values.duration = on ? (nowPlaying.duration ?? 0) : 0;
     values.position = on ? position : 0;
-    if (on && nowPlaying.shuffle) {
-      values.shuffle = nowPlaying.shuffle === 'SHUFFLE_ON' ? 1 : 0;
-    }
-    if (on && nowPlaying.repeat in REPEAT_SETTINGS) {
-      values.repeat = REPEAT_SETTINGS[nowPlaying.repeat];
-    }
+    // A source without these modes (TuneIn, AUX…) or standby: off, not the
+    // value of the previous source.
+    values.shuffle = on && nowPlaying.shuffle === 'SHUFFLE_ON' ? 1 : 0;
+    values.repeat = on ? (REPEAT_SETTINGS[nowPlaying.repeat] ?? REPEAT.OFF) : REPEAT.OFF;
   }
   if (volume) {
     values.volume = volume.level;

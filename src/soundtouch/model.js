@@ -101,6 +101,8 @@ export function parseNowPlaying(source) {
     // Only an image the speaker has (IMAGE_PRESENT): SHOW_DEFAULT_IMAGE and
     // DOWNLOADING carry no usable URL.
     art: art?.attributes.artImageStatus === 'IMAGE_PRESENT' ? artUrl(art.text.trim()) : null,
+    // The speaker is fetching the cover: the next push brings it.
+    artPending: art?.attributes.artImageStatus === 'DOWNLOADING',
     // SHUFFLE_ON / SHUFFLE_OFF and REPEAT_OFF / REPEAT_ALL / REPEAT_ONE, only
     // on the sources that have these modes (Spotify, stored music…).
     shuffle: childText(node, 'shuffleSetting'),

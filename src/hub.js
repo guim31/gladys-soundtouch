@@ -24,6 +24,7 @@ import {
   buildDevice,
   commandFor,
   musicValues,
+  playbackState,
   positionOf,
   presetLabel,
   sourceValue,
@@ -437,11 +438,18 @@ export class SoundTouchHub {
       this.gladys.forgetPublishedStates(ids.device);
     }
     const music = musicValues(speaker, this.config.language, positionOf(speaker, Date.now()));
+    // The two sends are independent: a failed now playing (429, network) does
+    // not hold back power, source and group, nor the widget.
+    let failure = null;
     if (Object.keys(music).length > 0) {
       const featureExternalIds = Object.fromEntries(
         Object.entries(MUSIC_KEYS).map(([type, key]) => [type, ids.feature(key)]),
       );
-      await this.toGladys('publishNowPlaying', ids.device, music, { featureExternalIds });
+      try {
+        await this.toGladys('publishNowPlaying', ids.device, music, { featureExternalIds });
+      } catch (err) {
+        failure = err;
+      }
     }
     const values = speakerValues(speaker, this.config.language, (id) => this.nameOf(id));
     const states = Object.entries(values).map(([key, value]) =>
@@ -453,6 +461,9 @@ export class SoundTouchHub {
       await this.toGladys('publishChangedStates', states, { heartbeat: this.timings.heartbeatMs });
     }
     this.widgetChanged(speaker);
+    if (failure) {
+      throw failure;
+    }
   }
 
   async publishAllStates() {
@@ -735,14 +746,39 @@ export class SoundTouchHub {
    * Keeps the position bookkeeping of positionOf.
    */
   setNowPlaying(speaker, next, { merge = false } = {}) {
-    speaker.nowPlaying = merge ? mergeNowPlaying(speaker.nowPlaying, next) : next;
-    const identity = trackIdentity(speaker.nowPlaying);
+    const now = Date.now();
+    const previous = speaker.nowPlaying;
+    let current = merge ? mergeNowPlaying(previous, next) : next;
+    // A partial push (buffering, pause…) keeps the last <time> sample: freeze
+    // the position reached under the previous state, or a state change would
+    // publish a stale position (and count the buffering time as played).
+    if (
+      next.position === null &&
+      current.position !== null &&
+      current.position !== undefined &&
+      playbackState(current) !== playbackState(previous)
+    ) {
+      current = { ...current, position: positionOf(speaker, now) };
+      speaker.sampledAt = now;
+    }
+    // A cover being downloaded has no URL yet: keep the one shown, the box
+    // swaps images without flashing the placeholder.
+    if (
+      current.art === null &&
+      current.artPending &&
+      previous?.art &&
+      current.source === previous.source
+    ) {
+      current = { ...current, art: previous.art };
+    }
+    speaker.nowPlaying = current;
+    const identity = trackIdentity(current);
     if (identity !== speaker.trackIdentity) {
       speaker.trackIdentity = identity;
-      speaker.trackStart = Date.now();
+      speaker.trackStart = now;
     }
     if (next.position !== null) {
-      speaker.sampledAt = Date.now();
+      speaker.sampledAt = now;
     }
   }
 

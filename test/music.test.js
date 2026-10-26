@@ -12,7 +12,7 @@ import jpeg from 'jpeg-js';
 import { validateMediaItems } from '@gladysassistant/integration-sdk';
 import { createAll, createWorld, deviceId, featureId, settle } from './helpers/world.js';
 import { push, setVolume } from './helpers/fakeSpeaker.js';
-import { downloadArtwork } from '../src/music.js';
+import { downloadArtwork, isLanHost } from '../src/music.js';
 
 const statesOf = (gladys, externalId) =>
   gladys.fake.states.filter((state) => state.device_feature_external_id === externalId);
@@ -80,8 +80,8 @@ test('now playing: one publication per speaker, through the 1.0 ids and the new 
     assert.equal(value(kitchen, 'duration'), 0);
     assert.equal(value(kitchen, 'mute'), 0);
     assert.equal(value(kitchen, 'volume'), 12);
-    // No shuffle/repeat on a radio: never published.
-    assert.equal(value(kitchen, 'shuffle'), undefined);
+    // No shuffle/repeat on a radio: off.
+    assert.equal(value(kitchen, 'shuffle'), 0);
     // Bedroom: standby, cleared explicitly.
     assert.equal(value(bedroom, 'playback-state'), 2);
     assert.equal(value(bedroom, 'title'), '');
@@ -292,4 +292,31 @@ test('a pushed track change is one batch, with the position of the push', async 
   } finally {
     await w.app.stop();
   }
+});
+
+test('isLanHost: private addresses in every spelling, local names', () => {
+  for (const host of [
+    '192.168.1.20',
+    '[::ffff:192.168.1.20]',
+    new URL('http://[::ffff:192.168.1.20]/').hostname,
+    '100.100.1.2',
+    '[fd00::1]',
+    'nas',
+    'router.lan',
+    'box.home.arpa',
+    'speaker.local',
+  ]) {
+    assert.equal(isLanHost(host), true, host);
+  }
+  for (const host of ['i.scdn.co', '8.8.8.8', '100.128.0.1', '[2001:db8::1]', '[::ffff:8.8.8.8]']) {
+    assert.equal(isLanHost(host), false, host);
+  }
+});
+
+test('downloadArtwork: an Internet cover redirected to a mapped LAN address is refused', async () => {
+  const fetch = async () => ({
+    status: 302,
+    headers: { get: () => 'http://[::ffff:192.168.1.20]/cover.jpg' },
+  });
+  await assert.rejects(downloadArtwork('https://i.scdn.co/image/x', { fetch }), /local network/);
 });

@@ -151,8 +151,9 @@ The fixtures keep their origin and license in
 
 ## Development
 
-Node.js 22+, ESM, no build step. The only runtime dependency is
-[`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js).
+Node.js 22+, ESM, no build step. Runtime dependencies:
+[`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js)
+and `jpeg-js` (pure JavaScript, to make large covers small).
 
 ```bash
 npm install

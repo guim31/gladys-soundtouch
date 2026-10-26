@@ -66,23 +66,47 @@ const ARTWORK_TIMEOUT_MS = 10_000;
 const PREPARED_ARTWORKS = 20;
 const REDIRECTS = 3;
 
-/** A private-network host (a media server on the LAN, the speaker itself). */
+/** IPv4 of an IPv4-mapped IPv6 (`::ffff:c0a8:101`, `::ffff:192.168.1.1`), or null. */
+function mappedIpv4(host) {
+  const dotted = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(host);
+  if (dotted) {
+    return dotted[1];
+  }
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  if (!hex) {
+    return null;
+  }
+  const [high, low] = [Number.parseInt(hex[1], 16), Number.parseInt(hex[2], 16)];
+  return [high >> 8, high & 255, low >> 8, low & 255].join('.');
+}
+
+/**
+ * A private-network host (a media server on the LAN, the speaker itself): by
+ * its address or its name. A public name that resolves into the LAN (DNS
+ * rebinding) is not caught; only a validated image comes out anyway.
+ */
 export function isLanHost(hostname) {
-  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  let host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  host = mappedIpv4(host) ?? host;
   const family = isIP(host);
   if (family === 4) {
-    return /^(10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+    return /^(10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(
+      host,
+    );
   }
   if (family === 6) {
     return /^(fe[89ab][0-9a-f]|f[cd][0-9a-f]{2}):/.test(host);
   }
-  return host.endsWith('.local');
+  // A bare name (nas, router) or a local suffix.
+  return !host.includes('.') || /\.(local|lan|home|internal|home\.arpa)$/.test(host);
 }
 
 /** Loopback or unspecified: the container itself, never fetched. */
 function isLocalHost(hostname) {
   const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|::1?|::ffff:127\..*)$/.test(host);
+  return /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|::1?|::ffff:127\..*|::ffff:7f[0-9a-f]{2}:.*)$/.test(
+    host,
+  );
 }
 
 /**
