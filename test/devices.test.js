@@ -11,14 +11,18 @@ import {
   NOTHING,
   buildDevice,
   commandFor,
+  musicValues,
   playingTexts,
+  positionOf,
   sourceOptions,
   speakerValues,
   zoneText,
 } from '../src/devices.js';
 import {
+  mergeNowPlaying,
   parseInfo,
   parseNowPlaying,
+  parseUpdate,
   parsePresets,
   parseSources,
   parseVolume,
@@ -62,18 +66,61 @@ test('one music player device per speaker, keyed on its device id', () => {
     [
       'switch/binary',
       'music/volume',
-      'switch/binary',
+      'music/mute',
       'music/play',
       'music/pause',
       'music/previous',
       'music/next',
       'music/playback_state',
       'text/select',
+      'music/title',
+      'music/artist',
       'text/text',
-      'text/text',
-      'text/text',
+      'music/album',
+      'music/artwork',
+      'music/duration',
+      'music/position',
+      'music/shuffle',
+      'music/repeat',
     ],
   );
+  // The 1.0 external ids are kept: mute, title and artist convert in place.
+  const byKey = Object.fromEntries(
+    device.features.map((feature) => [feature.external_id.split(':').pop(), feature]),
+  );
+  assert.deepEqual(Object.keys(byKey).slice(0, 12), [
+    'power',
+    'volume',
+    'mute',
+    'play',
+    'pause',
+    'previous',
+    'next',
+    'playback-state',
+    'source',
+    'title',
+    'artist',
+    'zone',
+  ]);
+  // Writable music features answer with feedback; position is read only (no seek).
+  assert.deepEqual(
+    Object.entries(byKey)
+      .filter(([, feature]) => feature.category === 'music' && !feature.read_only)
+      .map(([key, feature]) => `${key}:${feature.max}:${feature.has_feedback}`),
+    [
+      'volume:100:true',
+      'mute:1:true',
+      'play:1:false',
+      'pause:1:false',
+      'previous:1:false',
+      'next:1:false',
+      'playback-state:2:true',
+      'shuffle:1:true',
+      'repeat:2:true',
+    ],
+  );
+  assert.equal(byKey.position.read_only, true);
+  assert.equal(byKey.position.unit, 'seconds');
   // The Music box needs exactly these to show a speaker.
   for (const type of ['play', 'pause', 'previous', 'next', 'volume', 'playback_state']) {
     assert.ok(
@@ -107,14 +154,116 @@ test('values while a preset radio plays', () => {
     speakerValues(speaker(), 'en', (id) => (id === '020000000002' ? 'Bedroom' : id)),
     {
       power: 1,
-      'playback-state': 1,
       source: { text: 'preset-2' },
-      title: { text: 'MockTrack' },
-      artist: { text: 'MockArtist' },
-      volume: 12,
-      mute: 0,
       zone: { text: 'Leads Bedroom, 020000000003' },
     },
+  );
+  // A radio reports no time: duration 0, the position counted by the hub.
+  assert.deepEqual(musicValues(speaker(), 'en', 75), {
+    playback_state: 1,
+    title: 'MockTrack',
+    artist: 'MockArtist',
+    album: 'MockAlbum',
+    artwork_url: 'http://cdn-profiles.tunein.com/sXXXXX/images/logoq.png',
+    duration: 0,
+    position: 75,
+    volume: 12,
+    mute: 0,
+  });
+});
+
+test('music values on Spotify (libsoundtouch): artwork, time, shuffle, repeat', () => {
+  const spotify = speaker({ nowPlaying: nowPlaying('lib_spotify.xml') });
+  assert.deepEqual(musicValues(spotify, 'en', 402), {
+    playback_state: 1,
+    title: 'Nothing Else Matters (Live)',
+    artist: 'Metallica',
+    album: 'Metallica Through The Never (Music from the Motion Picture)',
+    // The URL comes indented in the document.
+    artwork_url: 'http://i.scdn.co/image/1362a06f43',
+    duration: 441,
+    position: 402,
+    shuffle: 0,
+    repeat: 0,
+    volume: 12,
+    mute: 0,
+  });
+  // The WebSocket push of libsoundtouch: shuffle on.
+  const pushed = parseUpdate(fixture('lib_ws_status.xml')).payload;
+  assert.equal(musicValues(speaker({ nowPlaying: pushed }), 'en', 30).shuffle, 1);
+  // Stored music: no artwork (SHOW_DEFAULT_IMAGE), repeat one written by the speaker.
+  const stored = nowPlaying('lib_stored_music.xml');
+  const values = musicValues(
+    speaker({ nowPlaying: { ...stored, repeat: 'REPEAT_ONE' } }),
+    'en',
+    77,
+  );
+  assert.equal(values.artwork_url, null);
+  assert.equal(values.repeat, 2);
+});
+
+test('music values: standby clears everything, buffering is 3, stop is idle', () => {
+  const standby = musicValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_standby.xml') }),
+    'fr',
+    12,
+  );
+  assert.deepEqual(standby, {
+    playback_state: 2,
+    title: '',
+    artist: '',
+    album: '',
+    artwork_url: null,
+    duration: 0,
+    position: 0,
+    volume: 12,
+    mute: 0,
+  });
+  const buffering = parseUpdate(
+    `<updates deviceID="11223344">${fixture('lib_spotify_buffering.xml')}</updates>`,
+  ).payload;
+  const merged = mergeNowPlaying(nowPlaying('lib_spotify.xml'), buffering);
+  assert.equal(musicValues(speaker({ nowPlaying: merged }), 'en', 0).playback_state, 3);
+  assert.equal(
+    musicValues(speaker({ nowPlaying: merged }), 'en', 0).title,
+    'Nothing Else Matters (Live)',
+  );
+  const stopped = { ...nowPlaying('lib_spotify.xml'), playStatus: 'STOP_STATE' };
+  assert.equal(musicValues(speaker({ nowPlaying: stopped }), 'en', 0).playback_state, 2);
+  // AUX: no metadata, the input's name keeps the player from looking empty.
+  const aux = musicValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_aux.xml') }),
+    'en',
+    0,
+  );
+  assert.deepEqual([aux.title, aux.artist, aux.album, aux.duration], ['AUX IN', '', '', 0]);
+  // Bluetooth: the phone's name is the station, not repeated as album.
+  const bt = musicValues(
+    speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_bluetooth.xml') }),
+    'en',
+    0,
+  );
+  assert.deepEqual([bt.title, bt.artist, bt.album], ['MockTrack', 'MockArtist', 'MockAlbum']);
+  // A radio without song: the station is the title, nothing below.
+  const radio = musicValues(speaker({ nowPlaying: nowPlaying('lib_radio.xml') }), 'en', 0);
+  assert.deepEqual([radio.title, radio.artist, radio.album], ['RMC Info Talk Sport', '', '']);
+});
+
+test('the position: sample moved forward while playing, frozen in pause, counted for a stream', () => {
+  const upnp = nowPlaying('ha_device1_now_playing_upnp.xml'); // 7 s of 42
+  const at = 1_000_000;
+  assert.equal(positionOf({ nowPlaying: upnp, sampledAt: at }, at + 10_400), 17);
+  assert.equal(positionOf({ nowPlaying: upnp, sampledAt: at }, at + 60_000), 42);
+  const paused = nowPlaying('ha_device1_now_playing_upnp_paused.xml');
+  assert.equal(positionOf({ nowPlaying: paused, sampledAt: at }, at + 60_000), paused.position);
+  const radio = nowPlaying('ha_device1_now_playing_radio.xml');
+  assert.equal(positionOf({ nowPlaying: radio, trackStart: at }, at + 95_000), 95);
+  assert.equal(
+    positionOf(
+      { nowPlaying: { ...radio, playStatus: 'PAUSE_STATE' }, trackStart: at },
+      at + 95_000,
+    ),
+    0,
   );
 });
 
@@ -124,17 +273,13 @@ test('values in standby, on AUX, on Bluetooth, paused', () => {
     'fr',
   );
   assert.equal(standby.power, 0);
-  assert.equal(standby['playback-state'], 0);
   assert.deepEqual(standby.source, { text: 'other' });
-  assert.deepEqual(standby.title, { text: 'Veille' });
-  assert.deepEqual(standby.artist, { text: NOTHING });
 
   const aux = speakerValues(
     speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_aux.xml') }),
     'en',
   );
   assert.deepEqual(aux.source, { text: 'AUX' });
-  assert.deepEqual(aux.title, { text: 'AUX IN' });
 
   const bluetooth = speakerValues(
     speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_bluetooth.xml') }),
@@ -147,7 +292,14 @@ test('values in standby, on AUX, on Bluetooth, paused', () => {
     'en',
   );
   assert.equal(paused.power, 1);
-  assert.equal(paused['playback-state'], 0);
+  assert.equal(
+    musicValues(
+      speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_upnp_paused.xml') }),
+      'en',
+      0,
+    ).playback_state,
+    0,
+  );
   // The UPnP address is stored as preset 1.
   assert.deepEqual(paused.source, { text: 'preset-1' });
 });
@@ -208,5 +360,27 @@ test('the other commands', () => {
   assert.throws(() => commandFor(on, FEATURE_KEYS.SOURCE, 'preset-5'), /empty/);
   assert.throws(() => commandFor(on, FEATURE_KEYS.SOURCE, 'SPOTIFY'), /Unknown source/);
   assert.throws(() => commandFor(on, FEATURE_KEYS.TITLE, 'x'), /no command/);
-  assert.throws(() => commandFor(on, FEATURE_KEYS.PLAYBACK, 1), /no command/);
+  assert.throws(() => commandFor(on, FEATURE_KEYS.POSITION, 30), /no command/);
+});
+
+test('the music player commands: playback state, shuffle, repeat', () => {
+  const on = speaker();
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.PLAYBACK, 1), { key: 'PLAY' });
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.PLAYBACK, 0), { key: 'PAUSE' });
+  assert.deepEqual(commandFor(on, FEATURE_KEYS.PLAYBACK, 2), { key: 'STOP' });
+  assert.throws(() => commandFor(on, FEATURE_KEYS.PLAYBACK, 3), /Invalid playback state/);
+  const standby = speaker({ nowPlaying: nowPlaying('ha_device1_now_playing_standby.xml') });
+  assert.equal(commandFor(standby, FEATURE_KEYS.PLAYBACK, 2), null);
+  assert.equal(commandFor(standby, FEATURE_KEYS.PLAYBACK, 0), null);
+
+  // A radio has neither shuffle nor repeat: refused, nothing sent.
+  assert.throws(() => commandFor(on, FEATURE_KEYS.SHUFFLE, 1), /no shuffle/);
+  assert.throws(() => commandFor(on, FEATURE_KEYS.REPEAT, 1), /no repeat/);
+  const spotify = speaker({ nowPlaying: nowPlaying('lib_spotify.xml') });
+  assert.deepEqual(commandFor(spotify, FEATURE_KEYS.SHUFFLE, 1), { key: 'SHUFFLE_ON' });
+  assert.equal(commandFor(spotify, FEATURE_KEYS.SHUFFLE, 0), null);
+  assert.deepEqual(commandFor(spotify, FEATURE_KEYS.REPEAT, 1), { key: 'REPEAT_ALL' });
+  assert.deepEqual(commandFor(spotify, FEATURE_KEYS.REPEAT, 2), { key: 'REPEAT_ONE' });
+  assert.equal(commandFor(spotify, FEATURE_KEYS.REPEAT, 0), null);
+  assert.throws(() => commandFor(spotify, FEATURE_KEYS.REPEAT, 5), /Invalid repeat/);
 });

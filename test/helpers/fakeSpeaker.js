@@ -192,6 +192,39 @@ function handleKey(speaker, key) {
       );
       break;
     }
+    case 'STOP':
+      if (!standby) {
+        setNowPlaying(
+          speaker,
+          speaker.nowPlayingXml.replace(
+            /<playStatus>[^<]*<\/playStatus>/,
+            '<playStatus>STOP_STATE</playStatus>',
+          ),
+        );
+      }
+      break;
+    case 'SHUFFLE_ON':
+    case 'SHUFFLE_OFF':
+      // Only a source with the mode changes it (Spotify, stored music).
+      setNowPlaying(
+        speaker,
+        speaker.nowPlayingXml.replace(
+          /<shuffleSetting>[^<]*<\/shuffleSetting>/,
+          `<shuffleSetting>${key}</shuffleSetting>`,
+        ),
+      );
+      break;
+    case 'REPEAT_OFF':
+    case 'REPEAT_ALL':
+    case 'REPEAT_ONE':
+      setNowPlaying(
+        speaker,
+        speaker.nowPlayingXml.replace(
+          /<repeatSetting>[^<]*<\/repeatSetting>/,
+          `<repeatSetting>${key}</repeatSetting>`,
+        ),
+      );
+      break;
     default:
       break;
   }

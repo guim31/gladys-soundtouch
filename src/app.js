@@ -6,6 +6,7 @@
 
 import { createLogger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig } from './config.js';
+import { createArtworkHandler } from './music.js';
 import { SoundTouchHub } from './hub.js';
 import { SCENE_ACTIONS } from './scenes.js';
 import { Store } from './store.js';
@@ -65,7 +66,7 @@ export const SEARCH_TEXT = {
 
 /**
  * @param {object} gladys GladysIntegration instance
- * @param {object} [options] test seams: store, fetch, createSocket, timers, timings, socketTimings, now
+ * @param {object} [options] test seams: store, fetch, artworkFetch, createSocket, timers, timings, socketTimings, now
  */
 export function registerHandlers(gladys, options = {}) {
   const hub = new SoundTouchHub({
@@ -114,6 +115,11 @@ export function registerHandlers(gladys, options = {}) {
   gladys.onScanRequest(whenReady(() => hub.rediscover()));
 
   gladys.onSetValue(whenReady((device, feature, value) => hub.setValue(device, feature, value)));
+
+  // Gladys 5.3 music panel: the presets, and the artwork of what plays.
+  gladys.onMusicBrowse(whenReady((device, request) => hub.browse(device, request)));
+  gladys.onMusicPlay(whenReady((device, media) => hub.playMedia(device, media)));
+  gladys.onMusicGetArtwork(createArtworkHandler(gladys, { fetch: options.artworkFetch }));
 
   // The devices are published with should_poll: false (pushed over the
   // WebSocket, refreshed by the hub's own timer): this only serves a Gladys

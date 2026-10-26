@@ -56,6 +56,11 @@ export function parseInfo(source) {
   };
 }
 
+/** An http(s) image URL, or null (empty, a placeholder, another scheme). */
+function artUrl(text) {
+  return text && /^https?:\/\/\S+$/i.test(text) ? text : null;
+}
+
 /** A <ContentItem>: what is (or would be) playing. */
 export function parseContentItem(node) {
   if (!node) {
@@ -68,6 +73,8 @@ export function parseContentItem(node) {
     type: node.attributes.type ?? '',
     name: childText(node, 'itemName'),
     presetable: node.attributes.isPresetable === 'true',
+    // The cover of a preset or a station, an http(s) URL when there is one.
+    art: artUrl(childText(node, 'containerArt')),
   };
 }
 
@@ -80,6 +87,7 @@ export function parseNowPlaying(source) {
   const time = child(node, 'time');
   const position = Number.parseInt(time?.text ?? '', 10);
   const duration = Number.parseInt(time?.attributes.total ?? '', 10);
+  const art = child(node, 'art');
   return {
     source: node.attributes.source ?? null,
     content: parseContentItem(child(node, 'ContentItem')),
@@ -90,6 +98,13 @@ export function parseNowPlaying(source) {
     playStatus: childText(node, 'playStatus'),
     position: Number.isFinite(position) ? position : null,
     duration: Number.isFinite(duration) ? duration : null,
+    // Only an image the speaker has (IMAGE_PRESENT): SHOW_DEFAULT_IMAGE and
+    // DOWNLOADING carry no usable URL.
+    art: art?.attributes.artImageStatus === 'IMAGE_PRESENT' ? artUrl(art.text.trim()) : null,
+    // SHUFFLE_ON / SHUFFLE_OFF and REPEAT_OFF / REPEAT_ALL / REPEAT_ONE, only
+    // on the sources that have these modes (Spotify, stored music…).
+    shuffle: childText(node, 'shuffleSetting'),
+    repeat: childText(node, 'repeatSetting'),
   };
 }
 
@@ -128,6 +143,7 @@ export function parsePresets(source) {
       name: content.name,
       source: content.source,
       location: content.location,
+      art: content.art,
       xml: toXml(item),
     });
   }

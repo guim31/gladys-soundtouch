@@ -29,6 +29,7 @@ export const allSpeakers = () => Object.values(FIXTURES).map((spec) => createSpe
  * @param {string} [options.dataDir]
  * @param {object} [options.timings] hub timing overrides
  * @param {boolean} [options.timers] run the hub's own timers (refresh, rescan)
+ * @param {typeof fetch} [options.artworkFetch] what the artwork handler downloads with
  */
 export async function createWorld({
   speakers = allSpeakers(),
@@ -41,6 +42,7 @@ export async function createWorld({
   timers = false,
   socketTimings,
   now,
+  artworkFetch,
 } = {}) {
   const network = createNetwork(speakers);
   const gladys = createFakeGladys({
@@ -56,6 +58,7 @@ export async function createWorld({
     timings: { debounceMs: 0, afterCommandMs: 0, ...timings },
     socketTimings,
     now,
+    artworkFetch,
   });
   if (connect) {
     await gladys.connect();

@@ -20,13 +20,18 @@
 import { createLogger } from '@gladysassistant/integration-sdk';
 import {
   FEATURE_KEYS,
+  MUSIC_KEYS,
   buildDevice,
   commandFor,
+  musicValues,
+  positionOf,
   presetLabel,
   sourceValue,
   speakerIds,
   speakerValues,
+  trackIdentity,
 } from './devices.js';
+import { presetItems, presetNumberOf } from './music.js';
 import { MDNS_TIMEOUT_SECONDS, mapLimit, mdnsCandidates } from './discovery.js';
 import { IssueLog } from './issues.js';
 import { KEYS, SoundTouchClient } from './soundtouch/client.js';
@@ -252,6 +257,13 @@ export class SoundTouchHub {
       refreshing: null,
       ownCommandAt: null,
       widgetKey: null,
+      // Position bookkeeping (Date.now(), the clock the SDK extrapolates with):
+      // when the last position was read, and when the current track started.
+      sampledAt: null,
+      trackStart: null,
+      trackIdentity: null,
+      // Last time the music snapshot was forgotten (heartbeat).
+      musicForgottenAt: null,
     };
   }
 
@@ -345,7 +357,7 @@ export class SoundTouchHub {
 
   applySnapshot(speaker, { info, nowPlaying, volume, presets, zone, sources }) {
     speaker.info = info;
-    speaker.nowPlaying = nowPlaying;
+    this.setNowPlaying(speaker, nowPlaying);
     speaker.volume = volume;
     speaker.presets = presets;
     speaker.zone = zone;
@@ -406,11 +418,30 @@ export class SoundTouchHub {
    * Publish the states of one speaker's device, if the user created it. The
    * SDK only sends what changed (Gladys caps states at 300 a minute and
    * re-evaluates the scenes on each one), plus a heartbeat of what did not.
+   * The music features go through publishNowPlaying (one batch per change,
+   * position only on an event or a jump); the others through
+   * publishChangedStates. Published even before the user clicks "Update" on a
+   * 1.0 device: Gladys ignores the features it does not have yet, and the SDK
+   * publishes everything again after the update.
    */
   async publishStates(speaker) {
     const ids = speakerIds(this.gladys, speaker);
     if (!speaker.info || !this.createdDeviceIds().has(ids.device)) {
       return;
+    }
+    // publishNowPlaying has no heartbeat: everything again as often.
+    if (speaker.musicForgottenAt === null) {
+      speaker.musicForgottenAt = this.now();
+    } else if (this.now() - speaker.musicForgottenAt >= this.timings.heartbeatMs) {
+      speaker.musicForgottenAt = this.now();
+      this.gladys.forgetPublishedStates(ids.device);
+    }
+    const music = musicValues(speaker, this.config.language, positionOf(speaker, Date.now()));
+    if (Object.keys(music).length > 0) {
+      const featureExternalIds = Object.fromEntries(
+        Object.entries(MUSIC_KEYS).map(([type, key]) => [type, ids.feature(key)]),
+      );
+      await this.toGladys('publishNowPlaying', ids.device, music, { featureExternalIds });
     }
     const values = speakerValues(speaker, this.config.language, (id) => this.nameOf(id));
     const states = Object.entries(values).map(([key, value]) =>
@@ -497,9 +528,12 @@ export class SoundTouchHub {
 
   /** Nudge the widget when what it shows (besides the live volume) changed. */
   widgetChanged(speaker) {
-    const values = speakerValues(speaker, this.config.language, (id) => this.nameOf(id));
+    const values = {
+      ...speakerValues(speaker, this.config.language, (id) => this.nameOf(id)),
+      ...musicValues(speaker, this.config.language, 0),
+    };
     // The volume tile is bound to its feature: it moves on its own.
-    delete values[FEATURE_KEYS.VOLUME];
+    delete values.volume;
     const key = JSON.stringify([
       speaker.reachable,
       speaker.info?.name,
@@ -696,9 +730,25 @@ export class SoundTouchHub {
     }
   }
 
+  /**
+   * A new now playing, read or pushed (`merge`: a push, possibly partial).
+   * Keeps the position bookkeeping of positionOf.
+   */
+  setNowPlaying(speaker, next, { merge = false } = {}) {
+    speaker.nowPlaying = merge ? mergeNowPlaying(speaker.nowPlaying, next) : next;
+    const identity = trackIdentity(speaker.nowPlaying);
+    if (identity !== speaker.trackIdentity) {
+      speaker.trackIdentity = identity;
+      speaker.trackStart = Date.now();
+    }
+    if (next.position !== null) {
+      speaker.sampledAt = Date.now();
+    }
+  }
+
   async nowPlayingChanged(speaker, nowPlaying) {
     const previous = speaker.nowPlaying;
-    speaker.nowPlaying = mergeNowPlaying(previous, nowPlaying);
+    this.setNowPlaying(speaker, nowPlaying, { merge: true });
     this.firePresetTrigger(speaker, previous);
     this.changedSoon(speaker);
   }
@@ -810,6 +860,18 @@ export class SoundTouchHub {
     }
   }
 
+  /** One read for a command, flagging the speaker unreachable when it does not answer. */
+  async read(speaker, call) {
+    try {
+      return await call();
+    } catch (err) {
+      if (err.unreachable) {
+        await this.reachabilityChanged(speaker, false);
+      }
+      throw err;
+    }
+  }
+
   /** A Gladys command on a feature of a speaker device. */
   async setValue(device, feature, value) {
     const speaker = this.require(device?.external_id);
@@ -817,16 +879,41 @@ export class SoundTouchHub {
     const key = feature?.external_id?.startsWith(prefix)
       ? feature.external_id.slice(prefix.length)
       : null;
+    if (key === FEATURE_KEYS.MUTE) {
+      // MUTE toggles: decide on the speaker's state of now, not a stale one.
+      speaker.volume = await this.read(speaker, () => speaker.client.getVolume());
+    }
     const command = commandFor(speaker, key, value);
     logger.info(`${speaker.info.name}: ${key} ← ${value}`);
     if (command === null) {
       // Already in that state, or "Other" picked: show the real state back.
-      this.gladys.forgetPublishedStates(feature.external_id);
+      this.gladys.forgetPublishedStates(device.external_id);
       await this.publishStates(speaker);
       return;
     }
     const own = [FEATURE_KEYS.POWER, FEATURE_KEYS.SOURCE].includes(key);
     await this.run(speaker, command, { own });
+  }
+
+  // --- Music panel (presets) -------------------------------------------------------
+
+  /** onMusicBrowse: the stored presets, at the root (nothing below). */
+  browse(device, { parentId, offset = 0, limit = 100 } = {}) {
+    const speaker = this.require(device?.external_id);
+    if (parentId !== null && parentId !== undefined) {
+      return { items: [], total: 0 };
+    }
+    const items = presetItems(this.gladys, speaker.presets, this.config.language);
+    return { items: items.slice(offset, offset + limit), total: items.length };
+  }
+
+  /** onMusicPlay: a preset (the only media the catalog hands out). */
+  async playMedia(device, media) {
+    const number = presetNumberOf(media?.id);
+    if (number === null) {
+      throw new Error(`Unknown media ${String(media?.id).slice(0, 60)}`);
+    }
+    await this.playPreset(device?.external_id, number);
   }
 
   /** Gladys poll (fallback: these devices have should_poll: false). */

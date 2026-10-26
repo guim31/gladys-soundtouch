@@ -28,7 +28,7 @@ la API local que usa esta integración sigue funcionando sin él.
 
 ## Requisitos
 
-- Gladys 5.2.0 o posterior.
+- Gladys 5.3.0 o posterior.
 - Altavoces SoundTouch en la misma red que Gladys, ya configurados con la
   aplicación SoundTouch (deben estar en su Wi-Fi o por Ethernet).
 - Gladys debe llegar a los altavoces por los puertos TCP 8090 (API), 8080
@@ -56,18 +56,22 @@ directo o consultado).
 
 ## El dispositivo altavoz
 
-| Función                | Qué hace                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------- |
-| Encendido              | Enciende el altavoz (retoma lo que reproducía) o lo pone en espera                    |
-| Volumen                | De 0 a 100, sigue el botón de volumen y el mando a distancia                          |
-| Silencio               | Silencia o devuelve el sonido                                                         |
-| Reproducir, Pausa      | Botones del cuadro Música                                                             |
-| Anterior, Siguiente    | Pista anterior o siguiente (en las fuentes que lo permiten)                           |
-| Estado de reproducción | Reproduciendo o en pausa, solo lectura (la espera cuenta como pausa)                  |
-| Fuente                 | AUX, Bluetooth o una de las presintonías guardadas; «Otra» para cualquier otra fuente |
-| Reproduciendo          | La pista, si no la emisora, si no la fuente; «En espera» cuando está apagado          |
-| Artista                | El artista, o la emisora de una radio que emite una pista; «—» si no hay ninguno      |
-| Grupo multisala        | «Sin grupo», «Dirige Cocina, Dormitorio» o «Sigue a Salón», solo lectura              |
+| Función                | Qué hace                                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| Encendido              | Enciende el altavoz (retoma lo que reproducía) o lo pone en espera                                        |
+| Volumen                | De 0 a 100, sigue el botón de volumen y el mando a distancia                                              |
+| Silencio               | Silencia o devuelve el sonido                                                                             |
+| Reproducir, Pausa      | Botones del cuadro Música                                                                                 |
+| Anterior, Siguiente    | Pista anterior o siguiente (en las fuentes que lo permiten)                                               |
+| Estado de reproducción | Reproduciendo, en pausa, detenido (también en espera) o cargando; controlable: reproducir, pausa, detener |
+| Fuente                 | AUX, Bluetooth o una de las presintonías guardadas; «Otra» para cualquier otra fuente                     |
+| Reproduciendo (título) | La pista, si no la emisora, si no la entrada («AUX IN»); vacío en espera                                  |
+| Artista                | El artista; vacío si no hay ninguno                                                                       |
+| Grupo multisala        | «Sin grupo», «Dirige Cocina, Dormitorio» o «Sigue a Salón», solo lectura                                  |
+| Álbum                  | El álbum, si no la emisora de una radio que emite una pista                                               |
+| Carátula               | La carátula de la pista o el logotipo de la emisora                                                       |
+| Duración, Posición     | Duración de la pista y por dónde va (0 para una radio); posición solo lectura                             |
+| Aleatorio, Repetir     | En las fuentes que los tienen (Spotify, música almacenada…)                                               |
 
 La lista **Fuente** muestra las presintonías guardadas en el altavoz con su
 nombre («Presintonía 2 · FIP»); sigue las presintonías que guarda o cambia en
@@ -78,6 +82,29 @@ altavoces que tienen una entrada AUX.
 
 Los grupos multisala se muestran, no se crean: créelos en la aplicación
 SoundTouch.
+
+## Reproductor Música de Gladys 5.3
+
+Desde Gladys 5.3, el cuadro **Música** del panel es un verdadero reproductor:
+título, artista, álbum, carátula, barra de progreso, reproducir / pausa /
+detener, anterior / siguiente, aleatorio, repetir, silencio y volumen. Su
+**panel** lista las seis presintonías del altavoz, con su carátula: un clic la
+lanza, exactamente como el botón de presintonía del altavoz. Las mismas
+presintonías se lanzan con la acción de escena **Reproducir un medio** de
+Gladys.
+
+- **Dispositivos existentes**: abra **Integraciones → Descubrimiento** y haga
+  clic en **Actualizar** en cada altavoz para obtener las nuevas funciones. No
+  se pierde nada: Silencio, Reproduciendo, Artista y Estado de reproducción
+  conservan sus identificadores; escenas y paneles siguen funcionando.
+- El estado de reproducción vale ahora **2** cuando el altavoz está detenido o
+  en espera (antes 0, como una pausa), y 3 mientras carga: revise las escenas
+  que lo comprueban.
+- Aleatorio y repetir solo funcionan en las fuentes que los tienen (Spotify,
+  música almacenada en un servidor…), no en una radio, AUX o Bluetooth.
+- No hay cola ni búsqueda: la API del altavoz no las ofrece.
+- La barra de progreso avanza sola en el panel: la posición solo se envía
+  cuando pasa algo (nueva pista, pausa, salto).
 
 ## Widget del panel
 
@@ -174,6 +201,7 @@ acción «Controlar un dispositivo» del núcleo sobre las funciones del altavoz
 
 ## Limitaciones
 
+- No se puede avanzar dentro de una pista: la API del altavoz no lo permite.
 - Desarrollada sin el hardware: el comportamiento con un altavoz real aún no se
   ha verificado.
 - Los anuncios de Gladys (la acción de escena «Difundir una notificación») no

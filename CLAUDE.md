@@ -44,6 +44,8 @@ src/soundtouch/client.js          HTTP client of the web API (8090) and UPnP ren
 src/soundtouch/socket.js          notification WebSocket (8080, sub-protocol "gabbo")
 src/soundtouch/model.js           the XML documents of the API, read into objects
 src/soundtouch/xml.js             small XML reader (no dependency)
+src/music.js                      Gladys 5.3 music panel (presets as MediaItems) and artwork handler
+src/artwork-resize.js             pure-JS artwork reduction under 300 KB (shared module, copy as is)
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
 src/widgets.js                    dashboard widget `player` (manifest `widgets`)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
@@ -283,5 +285,11 @@ vérifications sur une vraie enceinte passent par `node scripts/probe.mjs <ip>` 
   Les noms des autres enceintes viennent des enceintes connues.
 - Les annonces TTS de Gladys (`music/play_notification`) arrivent en **https** (Gladys Plus) :
   non exposées, le lecteur UPnP ne joue que du http.
+- **Lecteur Musique (1.1, Gladys 5.3, SDK 0.16)** : les fonctionnalités `music` passent par
+  `publishNowPlaying` (ids 1.0 gardés via `featureExternalIds`, heartbeat = `forgetPublishedStates`
+  toutes les 6 h) ; la position se recalcule depuis l'instant du dernier relevé (`sampledAt`),
+  jamais la valeur brute d'un document ancien. Pas de seek dans l'API. `shuffleSetting` /
+  `repeatSetting` n'existent que sur certaines sources : absents = commande refusée. La sourdine
+  relit `/volume` avant d'envoyer `MUTE`.
 - Le déclencheur `preset_selected` ignore les présélections lancées par Gladys dans les 5 s
   (pas de boucle de scène) ; il part aussi au réveil de l'enceinte sur une présélection.

@@ -28,7 +28,7 @@ without it.
 
 ## Requirements
 
-- Gladys 5.2.0 or later.
+- Gladys 5.3.0 or later.
 - SoundTouch speakers on the same network as Gladys, already set up with the
   SoundTouch app (they must be on your Wi-Fi or Ethernet network).
 - Gladys must reach the speakers on TCP ports 8090 (API), 8080 (notifications)
@@ -54,18 +54,22 @@ are live.
 
 ## The speaker device
 
-| Feature          | What it does                                                                 |
-| ---------------- | ---------------------------------------------------------------------------- |
-| Power            | Turns the speaker on (it resumes what it last played) or puts it in standby  |
-| Volume           | 0 to 100, follows the volume knob and the remote                             |
-| Mute             | Mutes or unmutes                                                             |
-| Play, Pause      | Buttons of the Music box                                                     |
-| Previous, Next   | Previous or next track (on the sources that allow it)                        |
-| Playback state   | Playing or paused, read only (standby counts as paused)                      |
-| Source           | AUX, Bluetooth or one of the stored presets; "Other" for any other source    |
-| Now playing      | The track, else the station, else the source; "Standby" when off             |
-| Artist           | The artist, or the station of a radio playing a song; "—" when there is none |
-| Multi-room group | "Not grouped", "Leads Kitchen, Bedroom" or "Follows Living room", read only  |
+| Feature             | What it does                                                                   |
+| ------------------- | ------------------------------------------------------------------------------ |
+| Power               | Turns the speaker on (it resumes what it last played) or puts it in standby    |
+| Volume              | 0 to 100, follows the volume knob and the remote                               |
+| Mute                | Mutes or unmutes                                                               |
+| Play, Pause         | Buttons of the Music box                                                       |
+| Previous, Next      | Previous or next track (on the sources that allow it)                          |
+| Playback state      | Playing, paused, stopped (standby too) or loading; writable: play, pause, stop |
+| Source              | AUX, Bluetooth or one of the stored presets; "Other" for any other source      |
+| Now playing (title) | The track, else the station, else the input ("AUX IN"); empty in standby       |
+| Artist              | The artist; empty when there is none                                           |
+| Multi-room group    | "Not grouped", "Leads Kitchen, Bedroom" or "Follows Living room", read only    |
+| Album               | The album, else the station of a radio playing a song                          |
+| Artwork             | The cover of the track or the logo of the station                              |
+| Duration, Position  | Length of the track and where it is (0 for a radio); position is read only     |
+| Shuffle, Repeat     | On the sources that have them (Spotify, stored music…)                         |
 
 The **Source** list shows the presets stored on the speaker with their names
 ("Preset 2 · FIP"); it follows the presets you store or change in the
@@ -74,6 +78,26 @@ source Gladys cannot choose itself (Spotify, a radio outside the presets,
 standby). AUX is only offered on the speakers that have an AUX input.
 
 Multi-room groups are shown, not created: create them in the SoundTouch app.
+
+## Gladys 5.3 Music player
+
+From Gladys 5.3, the **Music** box of the dashboard is a real player: title,
+artist, album, artwork, progress bar, play / pause / stop, previous / next,
+shuffle, repeat, mute and volume. Its **panel** lists the six presets of the
+speaker, with their cover: one click plays it, exactly like the preset button
+on the speaker. The same presets can be started by the scene action **Play a
+media** of Gladys.
+
+- **Existing devices**: open **Integrations → Discovery**, and click **Update**
+  on each speaker to get the new features. Nothing is lost: Mute, Now playing,
+  Artist and Playback state keep their ids, scenes and dashboards keep working.
+- Playback state now says **2** when the speaker is stopped or in standby (it
+  said 0, like a pause), and 3 while it loads: check the scenes that test it.
+- Shuffle and repeat only work on the sources that have them (Spotify, music
+  stored on a server…), not on a radio, AUX or Bluetooth.
+- There is no queue and no search: the speaker's web API offers neither.
+- The progress bar moves by itself in the dashboard: the speaker's position is
+  only sent when something happens (new track, pause, a jump).
 
 ## Dashboard widget
 
@@ -161,6 +185,7 @@ device" action on the speaker's features.
 
 ## Limitations
 
+- No seek in a track: the speaker's web API has none.
 - Developed without the hardware: the behaviour on a real speaker is not
   verified yet.
 - Gladys announcements (the "Broadcast a notification" scene action) are not

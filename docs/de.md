@@ -31,7 +31,7 @@ nutzt, funktioniert ohne ihn weiter.
 
 ## Voraussetzungen
 
-- Gladys 5.2.0 oder neuer.
+- Gladys 5.3.0 oder neuer.
 - SoundTouch-Lautsprecher im selben Netzwerk wie Gladys, bereits mit der
   SoundTouch-App eingerichtet (sie müssen in deinem WLAN oder per Ethernet
   verbunden sein).
@@ -61,18 +61,22 @@ Benachrichtigungen (live oder abgefragt).
 
 ## Das Lautsprecher-Gerät
 
-| Funktion                   | Was sie tut                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------- |
-| Betrieb                    | Schaltet den Lautsprecher ein (er setzt fort, was er zuletzt spielte) oder in den Standby     |
-| Lautstärke                 | 0 bis 100, folgt dem Lautstärkeknopf und der Fernbedienung                                    |
-| Stummschaltung             | Schaltet den Ton stumm oder wieder ein                                                        |
-| Wiedergabe, Pause          | Tasten der Musik-Box                                                                          |
-| Vorheriger, Nächster Titel | Vorheriger oder nächster Titel (bei Quellen, die das erlauben)                                |
-| Wiedergabestatus           | Wiedergabe oder Pause, nur lesbar (Standby zählt als Pause)                                   |
-| Quelle                     | AUX, Bluetooth oder eine der gespeicherten Voreinstellungen; „Andere“ für jede andere Quelle  |
-| Aktueller Titel            | Der Titel, sonst der Sender, sonst die Quelle; „Standby“, wenn er aus ist                     |
-| Interpret                  | Der Interpret, oder der Sender eines Radios, das einen Titel spielt; „—“, wenn es keinen gibt |
-| Multiroom-Gruppe           | „Nicht gruppiert“, „Steuert Küche, Schlafzimmer“ oder „Folgt Wohnzimmer“, nur lesbar          |
+| Funktion                       | Was sie tut                                                                                  |
+| ------------------------------ | -------------------------------------------------------------------------------------------- |
+| Betrieb                        | Schaltet den Lautsprecher ein (er setzt fort, was er zuletzt spielte) oder in den Standby    |
+| Lautstärke                     | 0 bis 100, folgt dem Lautstärkeknopf und der Fernbedienung                                   |
+| Stummschaltung                 | Schaltet den Ton stumm oder wieder ein                                                       |
+| Wiedergabe, Pause              | Tasten der Musik-Box                                                                         |
+| Vorheriger, Nächster Titel     | Vorheriger oder nächster Titel (bei Quellen, die das erlauben)                               |
+| Wiedergabestatus               | Wiedergabe, Pause, gestoppt (auch Standby) oder lädt; steuerbar: Wiedergabe, Pause, Stopp    |
+| Quelle                         | AUX, Bluetooth oder eine der gespeicherten Voreinstellungen; „Andere“ für jede andere Quelle |
+| Aktueller Titel (Titel)        | Der Titel, sonst der Sender, sonst der Eingang („AUX IN“); im Standby leer                   |
+| Interpret                      | Der Interpret; leer, wenn es keinen gibt                                                     |
+| Multiroom-Gruppe               | „Nicht gruppiert“, „Steuert Küche, Schlafzimmer“ oder „Folgt Wohnzimmer“, nur lesbar         |
+| Album                          | Das Album, sonst der Sender eines Radios, das einen Titel spielt                             |
+| Cover                          | Das Cover des Titels oder das Logo des Senders                                               |
+| Dauer, Position                | Länge des Titels und wo er gerade ist (0 bei einem Radio); Position nur lesbar               |
+| Zufallswiedergabe, Wiederholen | Bei den Quellen, die sie haben (Spotify, gespeicherte Musik…)                                |
 
 Die Liste **Quelle** zeigt die auf dem Lautsprecher gespeicherten
 Voreinstellungen mit ihrem Namen („Voreinstellung 2 · FIP“); sie folgt den
@@ -84,6 +88,31 @@ angeboten.
 
 Multiroom-Gruppen werden angezeigt, nicht erstellt: Erstelle sie in der
 SoundTouch-App.
+
+## Musik-Player von Gladys 5.3
+
+Seit Gladys 5.3 ist die **Musik**-Box des Dashboards ein echter Player: Titel,
+Interpret, Album, Cover, Fortschrittsbalken, Wiedergabe / Pause / Stopp,
+vorheriger / nächster Titel, Zufallswiedergabe, Wiederholen, Stummschaltung und
+Lautstärke. Der zugehörige **Bereich** listet die sechs Voreinstellungen des
+Lautsprechers mit ihrem Cover: Ein Klick startet sie, genau wie die
+Voreinstellungstaste am Lautsprecher. Dieselben Voreinstellungen startest du
+mit der Szenenaktion **Medium abspielen** von Gladys.
+
+- **Vorhandene Geräte**: Öffne **Integrationen → Erkennung** und klicke bei
+  jedem Lautsprecher auf **Aktualisieren**, um die neuen Funktionen zu
+  bekommen. Nichts geht verloren: Stummschaltung, Aktueller Titel, Interpret
+  und Wiedergabestatus behalten ihre IDs, Szenen und Dashboards funktionieren
+  weiter.
+- Der Wiedergabestatus ist jetzt **2**, wenn der Lautsprecher gestoppt oder im
+  Standby ist (vorher 0, wie eine Pause), und 3 während er lädt: Prüfe die
+  Szenen, die ihn abfragen.
+- Zufallswiedergabe und Wiederholen funktionieren nur bei Quellen, die sie haben
+  (Spotify, auf einem Server gespeicherte Musik…), nicht bei einem Radio, AUX
+  oder Bluetooth.
+- Keine Warteschlange und keine Suche: Die API des Lautsprechers hat keine.
+- Der Fortschrittsbalken läuft im Dashboard von selbst: Die Position wird nur
+  gesendet, wenn etwas passiert (neuer Titel, Pause, Sprung).
 
 ## Dashboard-Widget
 
@@ -184,6 +213,7 @@ Kernaktion „Ein Gerät steuern“ auf den Funktionen des Lautsprechers.
 
 ## Einschränkungen
 
+- Kein Springen innerhalb eines Titels: Die API des Lautsprechers kann das nicht.
 - Ohne die Hardware entwickelt: Das Verhalten an einem echten Lautsprecher ist
   noch nicht geprüft.
 - Gladys-Durchsagen (die Szenenaktion „Benachrichtigung senden“) werden nicht
