@@ -29,9 +29,15 @@ export const KEYS = {
   PLAY: 'PLAY',
   PAUSE: 'PAUSE',
   PLAY_PAUSE: 'PLAY_PAUSE',
+  STOP: 'STOP',
   NEXT: 'NEXT_TRACK',
   PREVIOUS: 'PREV_TRACK',
   MUTE: 'MUTE',
+  SHUFFLE_ON: 'SHUFFLE_ON',
+  SHUFFLE_OFF: 'SHUFFLE_OFF',
+  REPEAT_OFF: 'REPEAT_OFF',
+  REPEAT_ALL: 'REPEAT_ALL',
+  REPEAT_ONE: 'REPEAT_ONE',
 };
 
 export class SoundTouchError extends Error {

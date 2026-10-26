@@ -29,7 +29,7 @@ locale qu'utilise cette intégration continue de fonctionner sans lui.
 
 ## Prérequis
 
-- Gladys 5.2.0 ou plus récent.
+- Gladys 5.3.0 ou plus récent.
 - Des enceintes SoundTouch sur le même réseau que Gladys, déjà installées avec
   l'application SoundTouch (elles doivent être sur votre Wi-Fi ou en Ethernet).
 - Gladys doit joindre les enceintes sur les ports TCP 8090 (API), 8080
@@ -56,18 +56,22 @@ notifications (en direct ou non).
 
 ## L'appareil enceinte
 
-| Fonctionnalité     | Ce qu'elle fait                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| Marche             | Allume l'enceinte (elle reprend ce qu'elle jouait) ou la met en veille                   |
-| Volume             | De 0 à 100, suit le bouton de volume et la télécommande                                  |
-| Sourdine           | Coupe ou rétablit le son                                                                 |
-| Lecture, Pause     | Boutons de la boîte Musique                                                              |
-| Précédent, Suivant | Morceau précédent ou suivant (sur les sources qui le permettent)                         |
-| État de la lecture | En lecture ou en pause, en lecture seule (la veille compte comme une pause)              |
-| Source             | AUX, Bluetooth ou une des présélections enregistrées ; « Autre » pour toute autre source |
-| En cours           | Le morceau, sinon la station, sinon la source ; « Veille » quand elle est éteinte        |
-| Artiste            | L'artiste, ou la station d'une radio qui diffuse un morceau ; « — » s'il n'y en a pas    |
-| Groupe multi-room  | « Hors groupe », « Pilote Cuisine, Chambre » ou « Suit Salon », en lecture seule         |
+| Fonctionnalité        | Ce qu'elle fait                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| Marche                | Allume l'enceinte (elle reprend ce qu'elle jouait) ou la met en veille                               |
+| Volume                | De 0 à 100, suit le bouton de volume et la télécommande                                              |
+| Sourdine              | Coupe ou rétablit le son                                                                             |
+| Lecture, Pause        | Boutons de la boîte Musique                                                                          |
+| Précédent, Suivant    | Morceau précédent ou suivant (sur les sources qui le permettent)                                     |
+| État de la lecture    | En lecture, en pause, arrêtée (en veille aussi) ou en chargement ; pilotable : lecture, pause, arrêt |
+| Source                | AUX, Bluetooth ou une des présélections enregistrées ; « Autre » pour toute autre source             |
+| En cours (titre)      | Le morceau, sinon la station, sinon l'entrée (« AUX IN ») ; vide en veille                           |
+| Artiste               | L'artiste ; vide s'il n'y en a pas                                                                   |
+| Groupe multi-room     | « Hors groupe », « Pilote Cuisine, Chambre » ou « Suit Salon », en lecture seule                     |
+| Album                 | L'album, sinon la station d'une radio qui diffuse un morceau                                         |
+| Pochette              | La pochette du morceau ou le logo de la station                                                      |
+| Durée, Position       | Durée du morceau et où il en est (0 pour une radio) ; position en lecture seule                      |
+| Aléatoire, Répétition | Sur les sources qui les ont (Spotify, musique stockée…)                                              |
 
 La liste **Source** montre les présélections enregistrées sur l'enceinte avec
 leur nom (« Présélection 2 · FIP ») ; elle suit les présélections que vous
@@ -78,6 +82,30 @@ AUX n'est proposé que sur les enceintes qui ont une entrée AUX.
 
 Les groupes multi-room sont affichés, pas créés : créez-les dans l'application
 SoundTouch.
+
+## Lecteur Musique de Gladys 5.3
+
+Depuis Gladys 5.3, la boîte **Musique** du tableau de bord est un vrai lecteur :
+titre, artiste, album, pochette, barre de progression, lecture / pause / arrêt,
+précédent / suivant, aléatoire, répétition, sourdine et volume. Son **panneau**
+liste les six présélections de l'enceinte, avec leur pochette : un clic la lance,
+exactement comme le bouton de présélection de l'enceinte. Les mêmes
+présélections se lancent par l'action de scène **Jouer un média** de Gladys.
+
+- **Appareils existants** : ouvrez **Intégrations → Découverte** et cliquez sur
+  **Mettre à jour** sur chaque enceinte pour obtenir les nouvelles
+  fonctionnalités. Rien n'est perdu : Sourdine, En cours, Artiste et État de la
+  lecture gardent leurs identifiants, scènes et tableaux de bord continuent de
+  marcher.
+- L'état de la lecture vaut désormais **2** quand l'enceinte est arrêtée ou en
+  veille (0 avant, comme une pause), et 3 pendant le chargement : vérifiez les
+  scènes qui le testent.
+- Aléatoire et répétition ne marchent que sur les sources qui les ont (Spotify,
+  musique stockée sur un serveur…), pas sur une radio, AUX ou Bluetooth.
+- Pas de file d'attente ni de recherche : l'API de l'enceinte n'en a pas.
+- La barre de progression avance toute seule dans le tableau de bord : la
+  position de l'enceinte n'est envoyée que quand il se passe quelque chose
+  (nouveau morceau, pause, saut).
 
 ## Widget du tableau de bord
 
@@ -175,6 +203,7 @@ l'enceinte.
 
 ## Limites
 
+- Pas de déplacement dans un morceau : l'API de l'enceinte n'en a pas.
 - Développée sans le matériel : le comportement sur une vraie enceinte n'est
   pas encore vérifié.
 - Les annonces de Gladys (l'action de scène « Diffuser une notification ») ne

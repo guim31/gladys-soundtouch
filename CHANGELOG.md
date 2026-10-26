@@ -10,6 +10,36 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Added
+
+- Gladys 5.3 music player: each speaker now publishes what it plays to the
+  Music box of the dashboard: title, artist, album, artwork, duration and
+  position (moved forward by the dashboard itself, never sent every second),
+  shuffle and repeat (on the sources that have them: Spotify, stored music…;
+  off elsewhere),
+  mute and volume. Playback state is writable: play, pause and **stop**.
+- Music panel: the six presets of the speaker, with their cover, playable from
+  the panel and from the `music.play-media` scene action (sent back to the
+  speaker like the preset buttons, never as a long press that would store one).
+- Artwork served to Gladys through its proxy: Spotify and TuneIn covers as
+  they are, a large cover from a media server (stored music) made small in the
+  container with the small pure-JavaScript `jpeg-js` encoder (a runtime
+  dependency).
+
+### Changed
+
+- Requires Gladys 5.3.0 and SDK 0.16.0.
+- Existing devices: click **Update** on the speaker in the Discovery tab to get
+  the new features. Feature ids are kept: Mute (a switch), Now playing and
+  Artist (texts) become music features in place, so scenes and dashboards keep
+  working; before the update the new values are simply ignored by Gladys.
+- Playback state: standby and a stopped player are now **2 (idle)** instead of
+  0, and buffering is 3: a scene testing `= 0` no longer fires on standby.
+- Now playing and Artist are empty in standby (they showed "Standby" and "—"):
+  the Music box shows an empty player. The Power feature still says it.
+- Mute reads the speaker's state just before toggling it, so a mute changed on
+  the remote a moment earlier is never undone by mistake.
+
 ## [1.0.1] - 2026-10-15
 
 ### Added

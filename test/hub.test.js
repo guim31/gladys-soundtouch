@@ -187,7 +187,9 @@ test('commands: volume, mute, power, play/pause, next', async () => {
 
     await set('power', 0);
     assert.equal(last(gladys, featureId(gladys, kitchen, 'power')), 0);
-    assert.equal(last(gladys, featureId(gladys, kitchen, 'title')), 'Veille');
+    // Standby: the music player is idle and empty.
+    assert.equal(last(gladys, featureId(gladys, kitchen, 'title')), '');
+    assert.equal(last(gladys, featureId(gladys, kitchen, 'playback-state')), 2);
     await set('power', 0);
     assert.equal(
       kitchen.keys.filter((key) => key === 'POWER').length,
@@ -404,10 +406,9 @@ test('a new language rewrites the texts', async () => {
     const { gladys, network } = world;
     const bedroom = network.speakers[1];
     await createAll(world);
-    assert.equal(last(gladys, featureId(gladys, bedroom, 'title')), 'Veille');
+    assert.equal(last(gladys, featureId(gladys, bedroom, 'zone')), 'Suit My SoundTouch 1');
     await gladys.fake.configUpdated({ language: 'es' });
     await settle(world.hub);
-    assert.equal(last(gladys, featureId(gladys, bedroom, 'title')), 'En espera');
     assert.equal(last(gladys, featureId(gladys, bedroom, 'zone')), 'Sigue a My SoundTouch 1');
     const names = gladys.fake.discoveredDevices[0].features.map((feature) => feature.name);
     assert.ok(names.includes('Volumen') && names.includes('Grupo multisala'));

@@ -112,7 +112,21 @@ for (const scenario of scenarios) {
       for (const state of gladys.fake.states) {
         const feature = features.get(state.device_feature_external_id);
         assert.ok(feature, `state for an unknown feature ${state.device_feature_external_id}`);
-        if (feature.category === 'text') {
+        const musicString =
+          feature.category === 'music' &&
+          ['title', 'artist', 'album', 'artwork'].includes(feature.type);
+        if (musicString) {
+          // A music string may be empty (nothing loaded: cleared explicitly);
+          // an artwork is an image key, never a URL.
+          assert.equal(typeof state.text, 'string', feature.name);
+          assert.ok(state.text.length <= 200, feature.name);
+          if (feature.type === 'artwork') {
+            assert.match(state.text, /^$|^[a-z0-9][a-z0-9-]{0,63}$/, feature.name);
+          }
+        } else if (feature.type === 'playback_state') {
+          // 3 (buffering) is reported only: above the writable bounds 0-2.
+          assert.ok([0, 1, 2, 3].includes(state.state), `${feature.name}: ${state.state}`);
+        } else if (feature.category === 'text') {
           assert.ok(typeof state.text === 'string' && state.text.trim(), feature.name);
           if (feature.supported_options) {
             assert.ok(

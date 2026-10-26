@@ -3,9 +3,10 @@
 // payload, the state values, and what each command does on the speaker.
 //
 // One device per speaker, a music player in the Gladys sense: the `music/*`
-// features drive the core's Music dashboard box (play, pause, previous, next,
-// volume slider, playback state), and the rest (power, mute, source, what is
-// playing, multi-room group) shows in the device box.
+// features drive the core's Music dashboard box (Gladys 5.3: what plays, its
+// artwork and progress, play / pause / stop, previous, next, shuffle, repeat,
+// mute, volume), and the rest (power, source, multi-room group) shows in the
+// device box. The music features are published with publishNowPlaying.
 //
 // Feature keys are part of the external ids: permanent.
 // -----------------------------------------------------------------------------
@@ -13,9 +14,12 @@
 import {
   DEVICE_FEATURE_CATEGORIES as CATEGORIES,
   DEVICE_FEATURE_TYPES as TYPES,
+  DEVICE_FEATURE_UNITS as UNITS,
+  MUSIC_PLAYBACK_STATE as PLAYBACK,
+  MUSIC_REPEAT_MODE as REPEAT,
 } from '@gladysassistant/integration-sdk';
 import { KEYS } from './soundtouch/client.js';
-import { activePreset, isOn, isPlaying } from './soundtouch/model.js';
+import { activePreset, isOn } from './soundtouch/model.js';
 
 export const DEVICE_TYPE = 'speaker';
 
@@ -32,7 +36,48 @@ export const FEATURE_KEYS = {
   TITLE: 'title',
   ARTIST: 'artist',
   ZONE: 'zone',
+  // Gladys 5.3 music player.
+  ALBUM: 'album',
+  ARTWORK: 'artwork',
+  DURATION: 'duration',
+  POSITION: 'position',
+  SHUFFLE: 'shuffle',
+  REPEAT: 'repeat',
 };
+
+/**
+ * Music type → feature key, for publishNowPlaying (`featureExternalIds`): the
+ * 1.0 keys are kept (`playback-state`, `mute`, `title`…), external ids are
+ * forever.
+ */
+export const MUSIC_KEYS = {
+  [TYPES.MUSIC.PLAYBACK_STATE]: FEATURE_KEYS.PLAYBACK,
+  [TYPES.MUSIC.TITLE]: FEATURE_KEYS.TITLE,
+  [TYPES.MUSIC.ARTIST]: FEATURE_KEYS.ARTIST,
+  [TYPES.MUSIC.ALBUM]: FEATURE_KEYS.ALBUM,
+  [TYPES.MUSIC.ARTWORK]: FEATURE_KEYS.ARTWORK,
+  [TYPES.MUSIC.DURATION]: FEATURE_KEYS.DURATION,
+  [TYPES.MUSIC.POSITION]: FEATURE_KEYS.POSITION,
+  [TYPES.MUSIC.SHUFFLE]: FEATURE_KEYS.SHUFFLE,
+  [TYPES.MUSIC.REPEAT]: FEATURE_KEYS.REPEAT,
+  [TYPES.MUSIC.MUTE]: FEATURE_KEYS.MUTE,
+  [TYPES.MUSIC.VOLUME]: FEATURE_KEYS.VOLUME,
+};
+
+// The speaker's settings and the core's values (MUSIC_REPEAT_MODE).
+const REPEAT_SETTINGS = {
+  REPEAT_OFF: REPEAT.OFF,
+  REPEAT_ALL: REPEAT.ALL,
+  REPEAT_ONE: REPEAT.ONE,
+};
+const REPEAT_KEYS = {
+  [REPEAT.OFF]: KEYS.REPEAT_OFF,
+  [REPEAT.ALL]: KEYS.REPEAT_ALL,
+  [REPEAT.ONE]: KEYS.REPEAT_ONE,
+};
+
+// A day: the bound of the duration and position features.
+const LONG = 24 * 60 * 60;
 
 // Values of the source select. A preset is `preset-<n>`; `other` is any
 // source Gladys cannot select itself (Spotify, a radio outside the presets,
@@ -57,7 +102,13 @@ export const NAMES = {
     next: 'Next',
     'playback-state': 'Playback',
     source: 'Source',
-    title: 'Now playing',
+    title: 'Title',
+    album: 'Album',
+    artwork: 'Artwork',
+    duration: 'Duration',
+    position: 'Position',
+    shuffle: 'Shuffle',
+    repeat: 'Repeat',
     artist: 'Artist',
     zone: 'Multi-room group',
     other: 'Other',
@@ -77,7 +128,13 @@ export const NAMES = {
     next: 'Suivant',
     'playback-state': 'État de la lecture',
     source: 'Source',
-    title: 'En cours',
+    title: 'Titre',
+    album: 'Album',
+    artwork: 'Pochette',
+    duration: 'Durée',
+    position: 'Position',
+    shuffle: 'Aléatoire',
+    repeat: 'Répétition',
     artist: 'Artiste',
     zone: 'Groupe multi-room',
     other: 'Autre',
@@ -97,7 +154,13 @@ export const NAMES = {
     next: 'Nächster Titel',
     'playback-state': 'Wiedergabestatus',
     source: 'Quelle',
-    title: 'Aktueller Titel',
+    title: 'Titel',
+    album: 'Album',
+    artwork: 'Cover',
+    duration: 'Dauer',
+    position: 'Position',
+    shuffle: 'Zufallswiedergabe',
+    repeat: 'Wiederholen',
     artist: 'Interpret',
     zone: 'Multiroom-Gruppe',
     other: 'Andere',
@@ -117,7 +180,13 @@ export const NAMES = {
     next: 'Siguiente',
     'playback-state': 'Estado de reproducción',
     source: 'Fuente',
-    title: 'Reproduciendo',
+    title: 'Título',
+    album: 'Álbum',
+    artwork: 'Carátula',
+    duration: 'Duración',
+    position: 'Posición',
+    shuffle: 'Aleatorio',
+    repeat: 'Repetir',
     artist: 'Artista',
     zone: 'Grupo multisala',
     other: 'Otra',
@@ -143,6 +212,23 @@ const button = (key, names, type) => ({
   max: 1,
   read_only: false,
   has_feedback: false,
+  keep_history: false,
+});
+
+/**
+ * A music feature: read only, or writable with feedback (the speaker is the
+ * source of truth, its confirmation comes back as a state).
+ */
+const music = (key, names, type, { max = 0, writable = false, unit } = {}) => ({
+  key,
+  name: names[key],
+  category: CATEGORIES.MUSIC,
+  type,
+  min: 0,
+  max,
+  ...(unit ? { unit } : {}),
+  read_only: !writable,
+  has_feedback: writable,
   keep_history: false,
 });
 
@@ -228,32 +314,17 @@ export function speakerSpecs(speaker, language) {
       has_feedback: true,
       keep_history: false,
     },
-    {
-      key: FEATURE_KEYS.MUTE,
-      name: names.mute,
-      category: CATEGORIES.SWITCH,
-      type: TYPES.SWITCH.BINARY,
-      min: 0,
-      max: 1,
-      read_only: false,
-      has_feedback: true,
-      keep_history: false,
-    },
+    // A switch in 1.0: converted in place (same external id) by "Update".
+    music(FEATURE_KEYS.MUTE, names, TYPES.MUSIC.MUTE, { max: 1, writable: true }),
     button(FEATURE_KEYS.PLAY, names, TYPES.MUSIC.PLAY),
     button(FEATURE_KEYS.PAUSE, names, TYPES.MUSIC.PAUSE),
     button(FEATURE_KEYS.PREVIOUS, names, TYPES.MUSIC.PREVIOUS),
     button(FEATURE_KEYS.NEXT, names, TYPES.MUSIC.NEXT),
-    {
-      key: FEATURE_KEYS.PLAYBACK,
-      name: names[FEATURE_KEYS.PLAYBACK],
-      category: CATEGORIES.MUSIC,
-      type: TYPES.MUSIC.PLAYBACK_STATE,
-      min: 0,
-      max: 1,
-      read_only: true,
-      has_feedback: false,
-      keep_history: true,
-    },
+    // Writable since 1.1: 0 pause, 1 play, 2 stop (3, buffering, is reported only).
+    music(FEATURE_KEYS.PLAYBACK, names, TYPES.MUSIC.PLAYBACK_STATE, {
+      max: PLAYBACK.IDLE,
+      writable: true,
+    }),
     {
       key: FEATURE_KEYS.SOURCE,
       name: names.source,
@@ -266,9 +337,17 @@ export function speakerSpecs(speaker, language) {
       keep_history: false,
       supported_options: sourceOptions(speaker, language),
     },
-    text(FEATURE_KEYS.TITLE, names),
-    text(FEATURE_KEYS.ARTIST, names),
+    // Texts in 1.0: converted in place (same external ids) by "Update".
+    music(FEATURE_KEYS.TITLE, names, TYPES.MUSIC.TITLE),
+    music(FEATURE_KEYS.ARTIST, names, TYPES.MUSIC.ARTIST),
     text(FEATURE_KEYS.ZONE, names),
+    music(FEATURE_KEYS.ALBUM, names, TYPES.MUSIC.ALBUM),
+    music(FEATURE_KEYS.ARTWORK, names, TYPES.MUSIC.ARTWORK),
+    music(FEATURE_KEYS.DURATION, names, TYPES.MUSIC.DURATION, { max: LONG, unit: UNITS.SECONDS }),
+    // Read only: the web API has no seek.
+    music(FEATURE_KEYS.POSITION, names, TYPES.MUSIC.POSITION, { max: LONG, unit: UNITS.SECONDS }),
+    music(FEATURE_KEYS.SHUFFLE, names, TYPES.MUSIC.SHUFFLE, { max: 1, writable: true }),
+    music(FEATURE_KEYS.REPEAT, names, TYPES.MUSIC.REPEAT, { max: REPEAT.ONE, writable: true }),
   ];
 }
 
@@ -382,28 +461,120 @@ export function zoneText(speaker, language, nameOf) {
 }
 
 /**
- * Feature values of a speaker, by feature key: a number, or `{ text }`.
- * Only what is known (a speaker never read yet has no values).
+ * Values of the features that are not music ones (power, source, multi-room
+ * group), by feature key: a number, or `{ text }`. Only what is known (a
+ * speaker never read yet has no values).
  */
 export function speakerValues(speaker, language, nameOf = (id) => id) {
   const values = {};
-  const { nowPlaying, volume } = speaker;
+  const { nowPlaying } = speaker;
   if (nowPlaying) {
     values[FEATURE_KEYS.POWER] = isOn(nowPlaying) ? 1 : 0;
-    values[FEATURE_KEYS.PLAYBACK] = isPlaying(nowPlaying) ? 1 : 0;
     values[FEATURE_KEYS.SOURCE] = { text: sourceValue(speaker) };
-    const { title, artist } = playingTexts(nowPlaying, language);
-    values[FEATURE_KEYS.TITLE] = { text: title };
-    values[FEATURE_KEYS.ARTIST] = { text: artist };
-  }
-  if (volume) {
-    values[FEATURE_KEYS.VOLUME] = volume.level;
-    values[FEATURE_KEYS.MUTE] = volume.muted ? 1 : 0;
   }
   if (speaker.zoneKnown) {
     values[FEATURE_KEYS.ZONE] = { text: zoneText(speaker, language, nameOf) };
   }
   return values;
+}
+
+/** MUSIC_PLAYBACK_STATE of what the speaker reports; standby is idle. */
+export function playbackState(nowPlaying) {
+  if (!isOn(nowPlaying)) {
+    return PLAYBACK.IDLE;
+  }
+  switch (nowPlaying.playStatus) {
+    case 'PLAY_STATE':
+      return PLAYBACK.PLAYING;
+    case 'BUFFERING_STATE':
+      return PLAYBACK.BUFFERING;
+    case 'PAUSE_STATE':
+      return PLAYBACK.PAUSED;
+    default:
+      // STOP_STATE, or no status at all.
+      return PLAYBACK.IDLE;
+  }
+}
+
+/**
+ * Title, artist and album of the music player: the track, else the station,
+ * else the source ("AUX", "Bluetooth"…) so the player never looks empty while
+ * something plays. A radio's station goes to the album line when the track
+ * is a song. Empty when the speaker is in standby.
+ */
+export function musicTexts(nowPlaying, language) {
+  if (!isOn(nowPlaying)) {
+    return { title: '', artist: '', album: '' };
+  }
+  const { track, artist, album, station, content } = nowPlaying;
+  const title = track ?? station ?? content?.name ?? sourceLabel(nowPlaying, language);
+  const stationLine = station && station !== title ? station : null;
+  return { title, artist: artist ?? '', album: album ?? stationLine ?? '' };
+}
+
+/**
+ * The now playing of a speaker as publishNowPlaying takes it (keys are the
+ * SDK's: playback_state, title, artwork_url…). Shuffle and repeat are off on
+ * a source that does not report them; volume and mute once /volume was read.
+ * @param {object} speaker hub speaker: nowPlaying, volume
+ * @param {string} language
+ * @param {number} position seconds, from positionOf
+ */
+export function musicValues(speaker, language, position) {
+  const values = {};
+  const { nowPlaying, volume } = speaker;
+  if (nowPlaying) {
+    values.playback_state = playbackState(nowPlaying);
+    Object.assign(values, musicTexts(nowPlaying, language));
+    const on = isOn(nowPlaying);
+    values.artwork_url = on ? (nowPlaying.art ?? nowPlaying.content?.art ?? null) : null;
+    values.duration = on ? (nowPlaying.duration ?? 0) : 0;
+    values.position = on ? position : 0;
+    // A source without these modes (TuneIn, AUX…) or standby: off, not the
+    // value of the previous source.
+    values.shuffle = on && nowPlaying.shuffle === 'SHUFFLE_ON' ? 1 : 0;
+    values.repeat = on ? (REPEAT_SETTINGS[nowPlaying.repeat] ?? REPEAT.OFF) : REPEAT.OFF;
+  }
+  if (volume) {
+    values.volume = volume.level;
+    values.mute = volume.muted ? 1 : 0;
+  }
+  return values;
+}
+
+/**
+ * What identifies a track: when it changes, a stream without position starts
+ * counting from zero.
+ */
+export function trackIdentity(nowPlaying) {
+  if (!isOn(nowPlaying)) {
+    return null;
+  }
+  const { source, track, artist, album, station, content } = nowPlaying;
+  return JSON.stringify([source, content?.location, track, artist, album, station]);
+}
+
+/**
+ * The position to publish, in seconds, at `now` (ms, the SDK's clock):
+ * the speaker's last sample moved forward while it plays, capped at the
+ * duration. A stream that reports none (a radio) counts from its start while
+ * it plays, so the SDK, which extrapolates the same way, never republishes.
+ * @param {object} speaker nowPlaying, sampledAt (ms of the last position read), trackStart (ms)
+ * @param {number} now
+ */
+export function positionOf(speaker, now) {
+  const { nowPlaying } = speaker;
+  const playing = playbackState(nowPlaying) === PLAYBACK.PLAYING;
+  if (nowPlaying?.position === null || nowPlaying?.position === undefined) {
+    return playing && speaker.trackStart
+      ? Math.max(0, Math.floor((now - speaker.trackStart) / 1000))
+      : 0;
+  }
+  let position = nowPlaying.position;
+  if (playing && speaker.sampledAt) {
+    position += Math.max(0, Math.floor((now - speaker.sampledAt) / 1000));
+  }
+  return nowPlaying.duration ? Math.min(position, nowPlaying.duration) : position;
 }
 
 /**
@@ -428,9 +599,45 @@ export function commandFor(speaker, featureKey, value) {
       return { volume: Math.round(Math.min(100, Math.max(0, level))) };
     }
     case FEATURE_KEYS.MUTE: {
-      // MUTE toggles too.
+      // MUTE toggles too (the hub reads /volume again just before).
       const wanted = Number(value) === 1;
       return wanted === Boolean(speaker.volume?.muted) ? null : { key: KEYS.MUTE };
+    }
+    case FEATURE_KEYS.PLAYBACK: {
+      const wanted = Number(value);
+      if (wanted === PLAYBACK.PLAYING) {
+        return { key: KEYS.PLAY };
+      }
+      if (wanted !== PLAYBACK.PAUSED && wanted !== PLAYBACK.IDLE) {
+        throw new Error(`Invalid playback state ${value}`);
+      }
+      // Pause or stop a speaker in standby: nothing to do.
+      if (!on) {
+        return null;
+      }
+      return { key: wanted === PLAYBACK.PAUSED ? KEYS.PAUSE : KEYS.STOP };
+    }
+    case FEATURE_KEYS.SHUFFLE: {
+      const current = on ? speaker.nowPlaying.shuffle : null;
+      if (!current) {
+        throw new Error(`${speaker.info.name}: the current source has no shuffle`);
+      }
+      const wanted = Number(value) === 1;
+      if (wanted === (current === 'SHUFFLE_ON')) {
+        return null;
+      }
+      return { key: wanted ? KEYS.SHUFFLE_ON : KEYS.SHUFFLE_OFF };
+    }
+    case FEATURE_KEYS.REPEAT: {
+      const current = on ? REPEAT_SETTINGS[speaker.nowPlaying.repeat] : undefined;
+      if (current === undefined) {
+        throw new Error(`${speaker.info.name}: the current source has no repeat`);
+      }
+      const key = REPEAT_KEYS[Number(value)];
+      if (!key) {
+        throw new Error(`Invalid repeat mode ${value}`);
+      }
+      return Number(value) === current ? null : { key };
     }
     case FEATURE_KEYS.PLAY:
       return { key: KEYS.PLAY };

@@ -21,11 +21,14 @@ Corporation.
   (`_soundtouch._tcp`); the Gladys core browses for the integration (mediated
   network discovery). IP addresses can be typed by hand for the ones it does
   not see.
-- **One device per speaker, a music player**: the Gladys **Music** dashboard box
-  drives it (`music/play`, `pause`, `previous`, `next`, `volume`,
-  `playback_state`), and the device also has power, mute, **source** (AUX,
-  Bluetooth and the stored presets, by name), now playing, artist and the
-  **multi-room group** (read only).
+- **One device per speaker, a music player** (Gladys 5.3): the **Music**
+  dashboard box shows title, artist, album, artwork and progress, and drives
+  play / pause / stop, previous / next, shuffle, repeat, mute and volume. The
+  device also has power, **source** (AUX, Bluetooth and the stored presets, by
+  name) and the **multi-room group** (read only).
+- **Music panel**: the stored presets, with their cover, playable from the
+  panel and from the `music.play-media` scene action. The web API has no queue,
+  no search and no library browsing: nothing more is offered.
 - **Real time**: every speaker pushes its changes (volume, track, source,
   presets, group) over its WebSocket. The integration also refreshes each
   speaker by itself, every 2 minutes (30 s while the WebSocket is down): the
@@ -46,7 +49,7 @@ Corporation.
 
 ## Requirements
 
-- Gladys Assistant **5.2.0** or later (widget buttons opening a form, mediated
+- Gladys Assistant **5.3.0** or later (music player); before that, **5.2.0** (widget buttons opening a form, mediated
   mDNS discovery, scene triggers and actions).
 - SoundTouch speakers set up with the SoundTouch app, on the same local network
   as Gladys, reachable on TCP 8090, 8080 and (for _Play an audio address_) 8091.
@@ -94,6 +97,31 @@ Integration container ──HTTP :8090 /info /now_playing /volume /presets /sour
 - Memory: one WebSocket per speaker (Node.js' built-in client), a small XML
   reader, and no dependency beside the Gladys SDK.
 
+## Gladys 5.3 Music player
+
+- The music features go through the SDK's `publishNowPlaying` (one batch per
+  change); the position is sent only on an event (track, play/pause, a jump)
+  and moved forward by the dashboard. A radio reports no time: duration 0, and
+  the position counts from the start of the stream.
+- Feature ids of 1.0 are kept (`mute`, `title`, `artist`, `playback-state`):
+  **Update** in the Discovery tab converts them in place and adds `album`,
+  `artwork`, `duration`, `position`, `shuffle`, `repeat`.
+- Playback state: 0 pause, 1 play, 2 stop (`PAUSE`, `PLAY`, `STOP` keys);
+  standby and `STOP_STATE` are 2, `BUFFERING_STATE` is 3. Shuffle and repeat
+  (`SHUFFLE_ON/OFF`, `REPEAT_OFF/ALL/ONE`) are refused when the source does not
+  report them (radio, AUX, Bluetooth). Position is read only: the web API has
+  no seek.
+- Manifest `"music": { "browse": true }`: the presets at the root (`preset:<n>`),
+  played through `/select`. No queue, no search.
+- Artwork: the `<art>` of `/now_playing` (only with `IMAGE_PRESENT`) and the
+  `<containerArt>` of the presets, downloaded with bounds (10 MB, 10 s, no
+  redirect from the Internet into the LAN) and made smaller than 300 KB in pure
+  JavaScript when needed (`src/artwork-resize.js`, shared with the other
+  players of the campaign).
+- Bose has ended its SoundTouch cloud service: the integration only uses the
+  local API. Whether a streaming preset still plays depends on the speaker and
+  the service, not on Gladys.
+
 ## Limitations
 
 - **Developed without the hardware**: see above.
@@ -123,8 +151,9 @@ The fixtures keep their origin and license in
 
 ## Development
 
-Node.js 22+, ESM, no build step. The only runtime dependency is
-[`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js).
+Node.js 22+, ESM, no build step. Runtime dependencies:
+[`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js)
+and `jpeg-js` (pure JavaScript, to make large covers small).
 
 ```bash
 npm install
